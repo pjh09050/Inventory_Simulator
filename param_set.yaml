@@ -1,0 +1,12 @@
+data_path: ./data/project_mb51_df.pickle
+meta_path: ./data/project_zwms03s_df.pickle
+target: 61-2081610000000
+start_date: '2022-12-30'
+end_date: '2024-01-19'
+run_start_date: '2024-02-01'
+run_end_date: '2024-02-28'
+safety_stock: 17.096
+initial_stock: 34
+reorder_point: 32.572
+maintenance_mu: 70
+maintenance_std: 13
