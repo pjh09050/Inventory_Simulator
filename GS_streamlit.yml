@@ -3,7 +3,6 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - archspec
   - boltons=24.0.0=pyhd8ed1ab_0
   - brotli=1.1.0=hcfcfb64_1
   - brotli-bin=1.1.0=hcfcfb64_1
@@ -209,7 +208,6 @@ dependencies:
       - openpyxl==3.1.5
       - opt-einsum==3.3.0
       - optree==0.12.1
-      - ortools
       - parso==0.8.4
       - patsy==0.5.6
       - plotly==5.22.0
@@ -247,4 +245,3 @@ dependencies:
       - wrapt==1.16.0
       - xgboost==2.1.1
       - xlrd==2.0.1
-prefix: C:\Users\user\Anaconda3\envs\GS

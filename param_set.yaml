@@ -1,12 +1,29 @@
 data_path: ./data/project_mb51_df.pickle
 meta_path: ./data/project_zwms03s_df.pickle
-target: 61-2081610000000
+target: 61-200161000000
 start_date: '2022-12-30'
 end_date: '2024-01-19'
 run_start_date: '2024-02-01'
 run_end_date: '2024-02-28'
 safety_stock: 17.096
-initial_stock: 34
-reorder_point: 32.572
-maintenance_mu: 70
-maintenance_std: 13
+initial_stock: 34.0
+maintenance_mu: 70.0
+maintenance_std: 13.0
+품명: 수소(고순도), H2 HI-PURE 99.999%
+이동평균가: 38500
+납기(일)-Average Lead Time (Days) /Max/Min.1: 2
+Lead Time Standard Deviation (Days): 2.47
+Safety Stock 1: 116.07
+Reorder Point 1: 131.546
+Safety Stock 2: 63.015
+Reorder Point 2: 78.491
+Safety Stock 3: 17.096
+Reorder Point 3: 32.572
+Safety Stock 4: 26.005
+Reorder Point 4: 41.481
+Safety Stock 5: 31.121
+Reorder Point 5: 46.597
+Safety Stock 6: 43.101
+Reorder Point 6: 58.577
+Recommeded Safety Stock: 17.096
+Recommended Reorder Point: 32.572
