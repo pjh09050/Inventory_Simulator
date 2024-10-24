@@ -191,3 +191,194 @@ def eda(df):
             check_dd = pd.concat([check_dd, input_data_mb.loc[drop_index_list]])
     
     return data_dict
+
+def warmup_simulator(EOQ, SS, data_dict, initial_stock, lead_time_mu, lead_time_std, target, start_date, end_date, type):
+    warm_up_start_date = start_date - pd.Timedelta(days=lead_time_mu)
+
+    if initial_stock < 0:
+        initial_stock = 0
+
+    # 초기 재고 설정 및 시뮬레이션 준비
+    current_stock = initial_stock
+    stock_levels = []
+    order_dates = []
+    order_values = []
+    pending_orders = []
+    arrival_dates = []
+    lead_time_dates = []
+    rop_values = []
+
+    # 시뮬레이션 세팅
+    np.random.seed(1)
+
+    # 1년간의 데이터를 사용하여 분포 추정 (시뮬레이션 시작 전)
+    lambda_value, order_mu, order_std = moving_order_history(data_dict[target], start_date, end_date)
+    store_mu, store_std = moving_store_history(data_dict[target], start_date, end_date)
+    
+    minus = new_order(lambda_value, order_mu, order_std, start_date, end_date)
+    minus = minus.groupby(['날짜']).sum(numeric_only=True)
+    minus = minus.sort_index()
+
+    dates = pd.date_range(start=warm_up_start_date, end=start_date, freq='D')
+    arrival_date = pd.Timestamp(warm_up_start_date)
+    print(f"""
+                simulation type: {type}
+                재고 도착! warm_up 시뮬레이션 시작! 도착날짜: {arrival_date},
+                분포참조기간: {start_date.date()} ~ {end_date.date()},
+                분포참조기간에서 도출된 출고 람다, 평균, 표준편차: {lambda_value}, {order_mu}, {order_std},
+                분포참조기간에서 도출된 입고 평균, 표준편차: {store_mu}, {store_std},
+                초기재고: {initial_stock},
+                warm-up 시뮬러닝기간: {warm_up_start_date.date()} ~ {start_date.date()}
+          """)
+
+    for date in dates:
+        minus_stock = 0
+        plus_stock = 0
+
+        # lead time 및 reorder point 업데이트
+        lead_time = max(1, abs(int(np.random.normal(lead_time_mu, lead_time_std))))
+        minus_check = minus[minus.index <= date]
+        if minus_check.empty:
+            expected_demand_during_lead_time = int(abs(np.random.normal(order_mu, order_std)) * lead_time * lambda_value)
+        else:
+            expected_demand_during_lead_time = int(abs(minus_check.mean()) * lead_time * lambda_value)
+        reorder_point = expected_demand_during_lead_time + SS
+        rop_values.append(reorder_point)
+
+        # 입고량 업데이트
+        for order in list(pending_orders):
+            if order['arrival_date'] == date:
+                plus_stock += order['quantity']
+                pending_orders.remove(order)
+
+        # 출고량 업데이트
+        if date in minus.index:
+            daily_usage = minus.loc[date, '수량']
+            minus_stock += daily_usage
+
+        # 재고량 업데이트
+        current_stock += (minus_stock + plus_stock)
+        stock_levels.append([current_stock, date]) 
+
+        if current_stock <= reorder_point:
+            if date < arrival_date:
+                if current_stock - lead_time * lambda_value * abs(np.random.normal(order_mu, order_std)) < SS:
+                    if type == 'optimal' and EOQ is not None:
+                        order_value = EOQ 
+                    else:
+                        order_value = int(abs(np.random.normal(store_mu, store_std)))
+                    current_stock += order_value
+                    arrival_date = date + pd.Timedelta(days=lead_time)
+                    pending_orders.append({'arrival_date': arrival_date, 'quantity': order_value})
+                    lead_time_dates.append(arrival_date-date)
+                    arrival_dates.append(arrival_date)
+                    order_dates.append(date)
+                    order_values.append(order_value)
+                else:
+                    pass
+            else:
+                if type == 'optimal' and EOQ is not None:
+                    order_value = EOQ 
+                else:
+                    order_value = int(abs(np.random.normal(store_mu, store_std)))
+                current_stock += order_value
+                arrival_date = date + pd.Timedelta(days=lead_time)
+                pending_orders.append({'arrival_date': arrival_date, 'quantity': order_value})
+                lead_time_dates.append(arrival_date-date)
+                arrival_dates.append(arrival_date)
+                order_dates.append(date)
+                order_values.append(order_value)
+
+    stock_levels_df = pd.DataFrame(stock_levels)
+    stock_levels_df.columns = ['Stock', 'Date']
+    pending_orders_df = pd.DataFrame(pending_orders)
+    return stock_levels_df, pending_orders_df, order_dates, arrival_dates, rop_values, dates
+
+def run_simulation(EOQ, SS, data_dict, target, start_date, end_date, run_start_date, run_end_date, type, lead_time_mu, lead_time_std, initial_stock, order_dates, order_values, arrival_dates, pending_orders):
+    # 초기 재고 설정 및 시뮬레이션 준비
+    current_stock = initial_stock
+    stock_levels = []
+    lead_time_dates = []
+    rop_values = []
+    orders_df = pd.DataFrame(columns=['Order_Date', 'Order_Value', 'Arrival_date'])
+
+    # 시뮬레이션 세팅
+    np.random.seed(1)
+
+    # 1년간의 데이터를 사용하여 분포 추정 (시뮬레이션 시작 전)
+    lambda_value, order_mu, order_std = moving_order_history(data_dict[target], start_date, end_date)
+    store_mu, store_std = moving_store_history(data_dict[target], start_date, end_date)
+
+    dates = pd.date_range(start=run_start_date, end=run_end_date, freq='D')
+    arrival_date = pd.Timestamp(run_start_date)
+    minus = new_order(lambda_value, order_mu, order_std, run_start_date, run_end_date)
+    minus = minus.groupby(['날짜']).sum(numeric_only=True)
+    # main = generate_maintenance_schedule(data_dict[target], maintenance_mu, maintenance_std, simulation_start_date, simulation_start_date + pd.DateOffset(months=lookback_months))
+    # minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
+    # minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
+    # minus = minus[['날짜', '수량']].set_index('날짜')
+    minus = minus.sort_index()
+    print(f"""
+                초기재고: {initial_stock},
+                시뮬러닝기간: {run_start_date.date()} ~ {run_end_date.date()}
+          """)
+    for date in dates:
+        minus_stock = 0
+        plus_stock = 0
+
+        # lead time 및 reorder point 업데이트
+        lead_time = max(1, abs(int(np.random.normal(lead_time_mu, lead_time_std))))
+        minus_check = minus[minus.index <= date]
+        if minus_check.empty:
+            expected_demand_during_lead_time = int(abs(np.random.normal(order_mu, order_std)) * lead_time * lambda_value)
+        else:
+            expected_demand_during_lead_time = int(abs(minus_check.mean()) * lead_time * lambda_value)
+        reorder_point = expected_demand_during_lead_time + SS
+        rop_values.append(reorder_point)
+
+        # 입고량 업데이트
+        for index,order in pending_orders.iterrows():
+            if order['arrival_date'] == date:
+                plus_stock += order['quantity']
+                pending_orders.drop(index, inplace=True)
+
+        # 출고량 업데이트
+        if date in minus.index:
+            daily_usage = minus.loc[date, '수량']
+            minus_stock += daily_usage
+
+        # 재고량 업데이트
+        current_stock += (minus_stock + plus_stock)
+        stock_levels.append([current_stock, date]) 
+
+        if current_stock <= reorder_point:
+            if date < arrival_date:
+                if current_stock - lead_time * lambda_value * abs(np.random.normal(order_mu, order_std)) < SS:
+                    if type == 'optimal' and EOQ is not None:
+                        order_value = EOQ 
+                    else:
+                        order_value = int(abs(np.random.normal(store_mu, store_std)))
+                    arrival_date = date + pd.Timedelta(days=lead_time)
+                    new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
+                    pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
+                    lead_time_dates.append(arrival_date-date)
+                    orders_input = [date, order_value, arrival_date]
+                    orders_df.loc[len(orders_df)] = orders_input
+                else:
+                    pass
+            else:
+                if type == 'optimal' and EOQ is not None:
+                    order_value = EOQ 
+                else:
+                    order_value = int(abs(np.random.normal(store_mu, store_std)))
+                arrival_date = date + pd.Timedelta(days=lead_time)
+                new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
+                pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
+                lead_time_dates.append(arrival_date-date)
+                orders_input = [date, order_value, arrival_date]
+                orders_df.loc[len(orders_df)] = orders_input
+
+    stock_levels_df = pd.DataFrame(stock_levels)
+    stock_levels_df.columns = ['Stock', 'Date']
+    
+    return stock_levels_df, pending_orders, orders_df, rop_values, dates
