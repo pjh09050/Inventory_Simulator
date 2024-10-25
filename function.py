@@ -425,17 +425,19 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         marker=dict(symbol='circle')
     ))
     fig.update_layout(
+        autosize=True, 
         title={
-            'text': f'<span style="font-size:48px;">{target}</span><br>'
-                    f'<br><span style="font-size:28px;""font-weight:normal;">초기재고: {initial_stock:.2f} SS: {safety_stock:.2f}</span>',
-            'y':0.96, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top'
+            'text': f'<span style="font-size:36px;">{target}</span><br>'
+                    f'<br><span style="font-size:24px;""font-weight:normal;">초기재고: {initial_stock:.2f} SS: {safety_stock:.2f}</span>',
+            'x': 0.5, 'xanchor': 'center'
         },
+        margin=dict(l=0, r=0, t=180, b=0),  # 여백 설정으로 제목이 짤리지 않도록
         xaxis_title='날짜', yaxis_title='재고량', font=dict(size=36),
         xaxis=dict(titlefont=dict(size=24), tickformat='%Y-%m-%d', tickmode='linear',
             dtick=604800000.0, tickfont=dict(size=24)
         ),
         yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24)),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=26)),
-        width=2400, height=800, hoverlabel=dict(font_size=36)
+        width=1800, height=600, hoverlabel=dict(font_size=36)
     )
     return fig
