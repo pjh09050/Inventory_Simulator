@@ -5,6 +5,7 @@ import streamlit as st
 import scipy.stats as stats
 import pandas as pd
 import numpy as np
+import plotly.graph_objects as go
 
 def load_meta_info(meta_path):
     df_meta_info = pd.read_pickle(meta_path)
@@ -192,8 +193,8 @@ def eda(df):
     
     return data_dict
 
-def warmup_simulator(EOQ, SS, data_dict, initial_stock, lead_time_mu, lead_time_std, target, start_date, end_date, type):
-    warm_up_start_date = start_date - pd.Timedelta(days=lead_time_mu)
+def warmup_simulator(EOQ, SS, data_dict, target, initial_stock, lead_time_mu, lead_time_std, start_date, end_date, run_start_time, type):
+    warm_up_start_date = run_start_time - pd.Timedelta(days=lead_time_mu)
 
     if initial_stock < 0:
         initial_stock = 0
@@ -215,26 +216,16 @@ def warmup_simulator(EOQ, SS, data_dict, initial_stock, lead_time_mu, lead_time_
     lambda_value, order_mu, order_std = moving_order_history(data_dict[target], start_date, end_date)
     store_mu, store_std = moving_store_history(data_dict[target], start_date, end_date)
     
-    minus = new_order(lambda_value, order_mu, order_std, start_date, end_date)
+    minus = new_order(lambda_value, order_mu, order_std, warm_up_start_date, run_start_time)
     minus = minus.groupby(['날짜']).sum(numeric_only=True)
     minus = minus.sort_index()
 
-    dates = pd.date_range(start=warm_up_start_date, end=start_date, freq='D')
+    dates = pd.date_range(start=warm_up_start_date, end=run_start_time, freq='D')
     arrival_date = pd.Timestamp(warm_up_start_date)
-    print(f"""
-                simulation type: {type}
-                재고 도착! warm_up 시뮬레이션 시작! 도착날짜: {arrival_date},
-                분포참조기간: {start_date.date()} ~ {end_date.date()},
-                분포참조기간에서 도출된 출고 람다, 평균, 표준편차: {lambda_value}, {order_mu}, {order_std},
-                분포참조기간에서 도출된 입고 평균, 표준편차: {store_mu}, {store_std},
-                초기재고: {initial_stock},
-                warm-up 시뮬러닝기간: {warm_up_start_date.date()} ~ {start_date.date()}
-          """)
 
     for date in dates:
         minus_stock = 0
         plus_stock = 0
-
         # lead time 및 reorder point 업데이트
         lead_time = max(1, abs(int(np.random.normal(lead_time_mu, lead_time_std))))
         minus_check = minus[minus.index <= date]
@@ -294,7 +285,8 @@ def warmup_simulator(EOQ, SS, data_dict, initial_stock, lead_time_mu, lead_time_
     pending_orders_df = pd.DataFrame(pending_orders)
     return stock_levels_df, pending_orders_df, order_dates, arrival_dates, rop_values, dates
 
-def run_simulation(EOQ, SS, data_dict, target, start_date, end_date, run_start_date, run_end_date, type, lead_time_mu, lead_time_std, initial_stock, order_dates, order_values, arrival_dates, pending_orders):
+def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_date, run_start_date, run_end_date, lead_time_mu, lead_time_std, order_dates, order_values, arrival_dates, pending_orders, type):
+    warm_up_start_date = run_start_date - pd.Timedelta(days=lead_time_mu)
     # 초기 재고 설정 및 시뮬레이션 준비
     current_stock = initial_stock
     stock_levels = []
@@ -318,10 +310,31 @@ def run_simulation(EOQ, SS, data_dict, target, start_date, end_date, run_start_d
     # minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
     # minus = minus[['날짜', '수량']].set_index('날짜')
     minus = minus.sort_index()
-    print(f"""
-                초기재고: {initial_stock},
-                시뮬러닝기간: {run_start_date.date()} ~ {run_end_date.date()}
-          """)
+    if type == "distribution":
+        simulation_info = f"""
+        **Simulation type**: {type}   
+
+        **분포참조기간**: {start_date.date()} ~ {end_date.date()}  
+        **하루에 출고가 발생한 횟수**: {lambda_value}   
+        **분포참조기간에서 도출된 출고량 평균, 표준편차**: {order_mu}, {order_std}   
+        **분포참조기간에서 도출된 입고량 평균, 표준편차**: {store_mu}, {store_std}  
+
+        **Warm-up 시뮬레이션 기간**: {warm_up_start_date.date()} ~ {run_start_date.date()}  
+        **시뮬레이션 기간**: {run_start_date.date()} ~ {run_end_date.date()}
+        """
+    else:
+        simulation_info = f"""
+        **Simulation type**: {type}   
+
+        **분포참조기간**: {start_date.date()} ~ {end_date.date()}  
+        **하루에 출고가 발생한 횟수**: {lambda_value}   
+        **분포참조기간에서 도출된 출고량 평균, 표준편차**: {order_mu}, {order_std}   
+        **EOQ**: {EOQ}  
+
+        **Warm-up 시뮬레이션 기간**: {warm_up_start_date.date()} ~ {run_start_date.date()}  
+        **시뮬레이션 기간**: {run_start_date.date()} ~ {run_end_date.date()}
+        """
+
     for date in dates:
         minus_stock = 0
         plus_stock = 0
@@ -381,4 +394,48 @@ def run_simulation(EOQ, SS, data_dict, target, start_date, end_date, run_start_d
     stock_levels_df = pd.DataFrame(stock_levels)
     stock_levels_df.columns = ['Stock', 'Date']
     
-    return stock_levels_df, pending_orders, orders_df, rop_values, dates
+    return stock_levels_df, pending_orders, orders_df, rop_values, dates, simulation_info
+
+def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_levels_df_result, orders_df_result, target, initial_stock):
+    fig = go.Figure()
+    # Safety Stock 라인
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=[safety_stock] * len(dates),
+        mode='lines',
+        line=dict(color='red', dash='dash', width=2),
+        name=f'Safety Stock ({safety_stock:.2f})'
+    ))
+    # Reorder Point 라인
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=rop_values_result,
+        mode='lines+markers',
+        line=dict(color='green', dash='dash'),
+        name='Reorder Point',
+        marker=dict(symbol='circle')
+    ))
+    # Current Stock 라인
+    fig.add_trace(go.Scatter(
+        x=stock_levels_df_result['Date'],
+        y=stock_levels_df_result['Stock'],
+        mode='lines+markers',
+        line=dict(color='blue'),
+        name='Current Stock',
+        marker=dict(symbol='circle')
+    ))
+    fig.update_layout(
+        title={
+            'text': f'<span style="font-size:48px;">{target}</span><br>'
+                    f'<br><span style="font-size:28px;""font-weight:normal;">초기재고: {initial_stock:.2f} SS: {safety_stock:.2f}</span>',
+            'y':0.96, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top'
+        },
+        xaxis_title='날짜', yaxis_title='재고량', font=dict(size=36),
+        xaxis=dict(titlefont=dict(size=24), tickformat='%Y-%m-%d', tickmode='linear',
+            dtick=604800000.0, tickfont=dict(size=24)
+        ),
+        yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24)),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=26)),
+        width=2400, height=800, hoverlabel=dict(font_size=36)
+    )
+    return fig
