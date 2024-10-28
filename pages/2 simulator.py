@@ -102,8 +102,8 @@ if set_param:
                 'maintenance_mu': maintenance_mu,
                 'maintenance_std': maintenance_std
             })
-            meta_dict = load_meta_info(meta_path)
-            save_config.update(meta_dict[target])
+            st.session_state['meta_dict'] = load_meta_info(meta_path)
+            save_config.update(st.session_state['meta_dict'][target])
             with open(save_filename, 'w', encoding='utf-8') as file:
                 yaml.dump(save_config, file, default_flow_style=False, sort_keys=False, allow_unicode=True)
             st.success(f"Configuration saved to '{save_filename}'")
@@ -194,15 +194,20 @@ if st.session_state['parameters_loaded']:
                         st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['start_date'], st.session_state['end_date'], 
                         st.session_state['run_start_date'], simulation_type
                     )
-                    st.session_state['initial_stock'] = warmup_stock_levels_df['Stock'].iloc[-1]
-                    st.session_state['order_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
-                    st.session_state['order_vales'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['quantity'].tolist()
-                    st.session_state['arrival_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
-                    st.session_state['pending_orders'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()
+                    if not warmup_pending_orders_df.empty and 'arrival_date' in warmup_pending_orders_df.columns:
+                        st.session_state['order_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
+                        st.session_state['order_values'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['quantity'].tolist()
+                        st.session_state['arrival_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
+                        st.session_state['pending_orders'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()
+                    else:
+                        st.session_state['order_dates'] = []
+                        st.session_state['order_values'] = []
+                        st.session_state['arrival_dates'] = []
+                        st.session_state['pending_orders'] = pd.DataFrame() 
                     stock_levels_df_result, pending_orders_result, orders_df_result, rop_values_result, dates, simulation_info = run_simulation(
                         EOQ, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'], st.session_state['start_date'], st.session_state['end_date'], 
                         st.session_state['run_start_date'], st.session_state['run_end_date'], st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['order_dates'], 
-                        st.session_state['order_vales'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
+                        st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
                     )
                     st.session_state['stock_levels_df_result'] = stock_levels_df_result
                     st.session_state['pending_orders_result'] = pending_orders_result
@@ -237,15 +242,20 @@ if st.session_state['parameters_loaded']:
                     st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['start_date'], st.session_state['end_date'], 
                     st.session_state['run_start_date'], simulation_type
                 )
-                st.session_state['initial_stock'] = warmup_stock_levels_df['Stock'].iloc[-1]
-                st.session_state['order_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
-                st.session_state['order_vales'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['quantity'].tolist()
-                st.session_state['arrival_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
-                st.session_state['pending_orders'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()
+                if not warmup_pending_orders_df.empty and 'arrival_date' in warmup_pending_orders_df.columns:
+                    st.session_state['order_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
+                    st.session_state['order_values'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['quantity'].tolist()
+                    st.session_state['arrival_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
+                    st.session_state['pending_orders'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()
+                else:
+                    st.session_state['order_dates'] = []
+                    st.session_state['order_values'] = []
+                    st.session_state['arrival_dates'] = []
+                    st.session_state['pending_orders'] = pd.DataFrame() 
                 stock_levels_df_result, pending_orders_result, orders_df_result, rop_values_result, dates, simulation_info = run_simulation(
                     None, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'], st.session_state['start_date'], st.session_state['end_date'], 
                     st.session_state['run_start_date'], st.session_state['run_end_date'], st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['order_dates'], 
-                    st.session_state['order_vales'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
+                    st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
                 )
                 st.session_state['stock_levels_df_result'] = stock_levels_df_result
                 st.session_state['pending_orders_result'] = pending_orders_result

@@ -32,7 +32,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Title and header
-st.title('Simulation')
 st.subheader('Parameter Settings')
 
 data_path = st.text_input("Data Path", './data/project_mb51_df.pickle')
