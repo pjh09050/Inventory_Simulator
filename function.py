@@ -399,11 +399,9 @@ def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_da
     stock_levels_df.columns = ['Stock', 'Date']
     return stock_levels_df, pending_orders, orders_df, rop_values, dates, simulation_info
 
-def total_cost(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
-               run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
-               order_dates, order_values, arrival_dates, pending_orders,
-               alpha, beta, gamma, delta, lambda_param):
-    # 초기 재고 설정 및 시뮬레이션 준비
+def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, run_start_date, run_end_date, type, 
+                  lead_time_mu, lead_time_std, order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param):
+    
     current_stock = initial_stock
     stock_levels = []
     lead_time_dates = []
@@ -411,11 +409,9 @@ def total_cost(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date,
     orders_df = pd.DataFrame(columns=['Order_Date', 'Order_Value', 'Arrival_date'])
 
     # 시뮬레이션 세팅
-    np.random.seed(1)
+    np.random.seed(42)
 
     lambda_value, order_mu, order_std = moving_order_history(data_dict[target], start_date, end_date)
-    store_mu, store_std = moving_store_history(data_dict[target], start_date, end_date)
-
     dates = pd.date_range(start=run_start_date, end=run_end_date, freq='D')
     arrival_date = pd.Timestamp(run_start_date)
     minus = new_order(lambda_value, order_mu, order_std, run_start_date, run_end_date)
@@ -458,11 +454,7 @@ def total_cost(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date,
         if current_stock <= reorder_point:
             if date < arrival_date:
                 if current_stock - lead_time * lambda_value * abs(np.random.normal(order_mu, order_std)) < SS:
-                    if type == 'optimal' and EOQ is not None:
-                        order_value = EOQ 
-                        print('eoq')
-                    else:
-                        order_value = int(abs(np.random.normal(store_mu, store_std)))
+                    order_value = EOQ 
                     arrival_date = date + pd.Timedelta(days=lead_time)
                     new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
                     pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
@@ -472,11 +464,236 @@ def total_cost(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date,
                 else:
                     pass
             else:
-                if type == 'optimal' and EOQ is not None:
+                order_value = EOQ 
+                arrival_date = date + pd.Timedelta(days=lead_time)
+                new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
+                pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
+                lead_time_dates.append(arrival_date-date)
+                orders_input = [date, order_value, arrival_date]
+                orders_df.loc[len(orders_df)] = orders_input
+
+    stock_levels_df = pd.DataFrame(stock_levels)
+    stock_levels_df.columns = ['Stock', 'Date']
+
+    # 비용 계산
+    total_cost_df = pd.merge(orders_df, stock_levels_df, left_on='Arrival_date', right_on='Date', how='outer')
+    total_cost_df['tau'] = 0
+    total_cost_df['backlog_cost'] = 0
+    tau_counter = 0
+    for idx in range(1, len(total_cost_df)):
+        current_stock = total_cost_df['Stock'].iloc[idx]
+
+        if current_stock < 0:
+            if total_cost_df['Stock'].iloc[idx-1] < 0:
+                tau_counter += 1
+            else:
+                tau_counter = 1
+
+            backlog_gap = max(0, total_cost_df['Stock'].iloc[idx-1])
+            backlog_cost = backlog_gap * beta * np.exp(lambda_param * tau_counter)
+
+            total_cost_df.at[idx, 'tau'] = tau_counter
+            total_cost_df.at[idx, 'backlog_cost'] = backlog_cost
+        else:
+            tau_counter = 0
+
+    # 재고 비용 계산
+    total_cost_df['inventory_cost'] = stock_levels_df.iloc[:, 0] * meta_dict[target]['이동평균가'] * alpha
+
+    # 주문 비용 계산
+    total_cost_df['order_cost'] = np.where(total_cost_df['Order_Date'].notna(), total_cost_df['Order_Value'] * meta_dict[target]['이동평균가'] * gamma + delta, np.nan)
+
+    # 총 비용 계산
+    total_cost_value = total_cost_df[['backlog_cost', 'inventory_cost', 'order_cost']].abs().sum().sum()
+    return stock_levels_df, pending_orders, orders_df, rop_values, dates, total_cost_value, minus
+
+def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_date, end_date, 
+                          run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
+                          order_dates, order_values, arrival_dates, pending_orders,
+                          EOQ_LOW=10, EOQ_HIGH=100, SS_LOW=10, SS_HIGH=50, alpha=0.1, beta=50000,
+                          gamma=0.35, delta=700000, lambda_param=3, population_size=20, 
+                          ngen=100, cxpb=0.6, mutpb=0.4, elitism_percent=0.02):
+    
+    def calculate_bits(value_range):
+        """주어진 범위에 맞는 최소 비트 수 계산"""
+        low, high = value_range
+        return math.ceil(math.log2(high - low + 1))
+
+    def int_to_binary(value, num_bits, low):
+        """정수를 이진수로 변환"""
+        return list(map(int, bin(value - low)[2:].zfill(num_bits)))
+
+    def binary_to_int(binary, low, high):
+        """이진수를 정수로 변환"""
+        value = int("".join(map(str, binary)), 2)
+        return max(low, min(value + low, high))
+    
+    # 목적 함수 (이진수 개체를 평가)
+    def eval_total_cost(individual):
+        EOQ_binary, SS_binary = individual[:EOQ_BITS], individual[EOQ_BITS:]
+        EOQ = binary_to_int(EOQ_binary, EOQ_LOW, EOQ_HIGH)
+        SS = binary_to_int(SS_binary, SS_LOW, SS_HIGH)
+        _, _, _, _, _, total_cost_value, _ = total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
+                          run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
+                          order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param)
+        
+        return total_cost_value,
+
+    # 필요한 비트 수 계산
+    EOQ_BITS = calculate_bits((EOQ_LOW, EOQ_HIGH))
+    SS_BITS = calculate_bits((SS_LOW, SS_HIGH))
+
+    # Fitness 및 개체 생성
+    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    creator.create("Individual", list, fitness=creator.FitnessMin)
+
+    toolbox = base.Toolbox()
+    toolbox.register("attr_bool", random.randint, 0, 1)
+    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, n=EOQ_BITS + SS_BITS)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+    
+    # 교차 및 변이 연산 등록
+    toolbox.register("mate", tools.cxTwoPoint)
+    toolbox.register("mutate", tools.mutFlipBit, indpb=0.3)
+    toolbox.register("select", tools.selRoulette)
+    toolbox.register("evaluate", eval_total_cost)
+
+    # 초기 개체 수 설정
+    population = toolbox.population(n=population_size)
+    elitism_size = max(int(len(population) * elitism_percent), 2)
+
+    # 초기 세대 평가
+    for ind in population:
+        ind.fitness.values = toolbox.evaluate(ind)
+
+    # 진화 과정
+    status_text = st.empty()
+    for gen in range(ngen):
+        best_fitness = tools.selBest(population, 1)[0].fitness.values[0]
+        best_individuals = [ind for ind in population if ind.fitness.values[0] == best_fitness]
+        elite_individuals = tools.selBest(population, elitism_size)
+        elite_individuals = list(map(toolbox.clone, elite_individuals))
+        
+        offspring = toolbox.select(population, len(population) - len(best_individuals) - len(elite_individuals))
+        offspring = list(map(toolbox.clone, offspring))
+        offspring.extend(best_individuals)
+        offspring.extend(elite_individuals)
+        
+        # 교차 연산
+        for child1, child2 in zip(offspring[::2], offspring[1::2]):
+            if random.random() < cxpb:
+                toolbox.mate(child1, child2)
+                del child1.fitness.values
+                del child2.fitness.values
+
+        # 변이 연산
+        mutpb = min(0.3 + gen * 0.01, mutpb)
+        for mutant in offspring:
+            if random.random() < mutpb:
+                toolbox.mutate(mutant)
+                del mutant.fitness.values
+
+        # 적합도 평가
+        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+        fitnesses = list(map(toolbox.evaluate, invalid_ind))
+        for ind, fit in zip(invalid_ind, fitnesses):
+            ind.fitness.values = fit
+
+        # 엘리트 개체를 다음 세대로 유지
+        population[:] = offspring
+
+        # 세대별 최고 적합도 및 EOQ, SS 값 출력
+        best_ind = tools.selBest(population, 1)[0]
+        EOQ = binary_to_int(best_ind[:EOQ_BITS], EOQ_LOW, EOQ_HIGH)
+        SS = binary_to_int(best_ind[EOQ_BITS:], SS_LOW, SS_HIGH)
+        status_text.write(f"세대 {gen+1}")
+        # print(f"세대 {gen+1}, 최고 fitness: {best_ind.fitness.values[0]:,.0f}, EOQ: {EOQ}, SS: {SS}")
+
+    best_fitness = tools.selBest(population, 1)[0].fitness.values[0]
+    best_individuals = [ind for ind in population if ind.fitness.values[0] == best_fitness]
+    
+    results = set()
+    for ind in best_individuals:
+        EOQ = binary_to_int(ind[:EOQ_BITS], EOQ_LOW, EOQ_HIGH)
+        SS = binary_to_int(ind[EOQ_BITS:], SS_LOW, SS_HIGH)
+        results.add((EOQ, SS))
+
+    results = list(results)
+    _, _, _, _, _, _, minus_value = total_cost_ga(
+        EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
+        run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
+        order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param
+    )
+    return results, minus_value
+
+def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
+               run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
+               order_dates, order_values, arrival_dates, pending_orders,
+               alpha, beta, gamma, delta, lambda_param, minus):
+    # 초기 재고 설정 및 시뮬레이션 준비
+    current_stock = initial_stock
+    stock_levels = []
+    lead_time_dates = []
+    rop_values = []
+    orders_df = pd.DataFrame(columns=['Order_Date', 'Order_Value', 'Arrival_date'])
+
+    # 시뮬레이션 세팅
+    np.random.seed(1)
+
+    lambda_value, order_mu, order_std = moving_order_history(data_dict[target], start_date, end_date)
+    dates = pd.date_range(start=run_start_date, end=run_end_date, freq='D')
+    arrival_date = pd.Timestamp(run_start_date)
+    # minus = new_order(lambda_value, order_mu, order_std, run_start_date, run_end_date)
+    # minus = minus.groupby(['날짜']).sum(numeric_only=True)
+    # main = generate_maintenance_schedule(data_dict[target], maintenance_mu, maintenance_std, simulation_start_date, simulation_start_date + pd.DateOffset(months=lookback_months))
+    # minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
+    # minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
+    # minus = minus[['날짜', '수량']].set_index('날짜')
+    # minus = minus.sort_index()
+
+    for date in dates:
+        minus_stock = 0
+        plus_stock = 0
+
+        # lead time 및 reorder point 업데이트
+        lead_time = max(1, abs(int(np.random.normal(lead_time_mu, lead_time_std))))
+        minus_check = minus[minus.index <= date]
+        if minus_check.empty:
+            expected_demand_during_lead_time = int(abs(np.random.normal(order_mu, order_std)) * lead_time * lambda_value)
+        else:
+            expected_demand_during_lead_time = int(abs(minus_check.mean()) * lead_time * lambda_value)
+        reorder_point = expected_demand_during_lead_time + SS
+        rop_values.append(reorder_point)
+
+        # 입고량 업데이트
+        for index,order in pending_orders.iterrows():
+            if order['arrival_date'] == date:
+                plus_stock += order['quantity']
+                pending_orders.drop(index, inplace=True)
+
+        # 출고량 업데이트
+        if date in minus.index:
+            daily_usage = minus.loc[date, '수량']
+            minus_stock += daily_usage
+
+        # 재고량 업데이트
+        current_stock += (minus_stock + plus_stock)
+        stock_levels.append([current_stock, date]) 
+
+        if current_stock <= reorder_point:
+            if date < arrival_date:
+                if current_stock - lead_time * lambda_value * abs(np.random.normal(order_mu, order_std)) < SS:
                     order_value = EOQ 
-                    print('eoq')
+                    arrival_date = date + pd.Timedelta(days=lead_time)
+                    new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
+                    pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
+                    lead_time_dates.append(arrival_date-date)
+                    orders_input = [date, order_value, arrival_date]
+                    orders_df.loc[len(orders_df)] = orders_input
                 else:
-                    order_value = int(abs(np.random.normal(store_mu, store_std)))
+                    pass
+            else:
+                order_value = EOQ 
                 arrival_date = date + pd.Timedelta(days=lead_time)
                 new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
                 pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
@@ -519,123 +736,6 @@ def total_cost(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date,
     total_cost_value = total_cost_df[['backlog_cost', 'inventory_cost', 'order_cost']].abs().sum().sum()
     return stock_levels_df, pending_orders, orders_df, rop_values, dates, total_cost_value
 
-def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_date, end_date, 
-                          run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
-                          order_dates, order_values, arrival_dates, pending_orders,
-                          EOQ_LOW=10, EOQ_HIGH=100, SS_LOW=10, SS_HIGH=50, alpha=0.1, beta=50000,
-                          gamma=0.35, delta=700000, lambda_param=3, population_size=20, 
-                          ngen=100, cxpb=0.6, mutpb=0.4, elitism_percent=0.02):
-    
-    def calculate_bits(value_range):
-        """주어진 범위에 맞는 최소 비트 수 계산"""
-        low, high = value_range
-        return math.ceil(math.log2(high - low + 1))
-
-    def int_to_binary(value, num_bits, low):
-        """정수를 이진수로 변환"""
-        return list(map(int, bin(value - low)[2:].zfill(num_bits)))
-
-    def binary_to_int(binary, low, high):
-        """이진수를 정수로 변환"""
-        value = int("".join(map(str, binary)), 2)
-        return max(low, min(value + low, high))
-    
-    # 목적 함수 (이진수 개체를 평가)
-    def eval_total_cost(individual):
-        EOQ_binary, SS_binary = individual[:EOQ_BITS], individual[EOQ_BITS:]
-        EOQ = binary_to_int(EOQ_binary, EOQ_LOW, EOQ_HIGH)
-        SS = binary_to_int(SS_binary, SS_LOW, SS_HIGH)
-        _, _, _, _, _, total_cost_value = total_cost(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
-                          run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
-                          order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param)
-        
-        return total_cost_value,
-
-    # 필요한 비트 수 계산
-    EOQ_BITS = calculate_bits((EOQ_LOW, EOQ_HIGH))
-    SS_BITS = calculate_bits((SS_LOW, SS_HIGH))
-
-    # Fitness 및 개체 생성
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-    creator.create("Individual", list, fitness=creator.FitnessMin)
-
-    toolbox = base.Toolbox()
-    toolbox.register("attr_bool", random.randint, 0, 1)
-    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, n=EOQ_BITS + SS_BITS)
-    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-    
-    # 교차 및 변이 연산 등록
-    toolbox.register("mate", tools.cxTwoPoint)
-    toolbox.register("mutate", tools.mutFlipBit, indpb=0.3)
-    toolbox.register("select", tools.selRoulette)
-    toolbox.register("evaluate", eval_total_cost)
-
-    # 초기 개체 수 설정
-    population = toolbox.population(n=population_size)
-    elitism_size = max(int(len(population) * elitism_percent), 1)
-
-    # 초기 세대 평가
-    for ind in population:
-        ind.fitness.values = toolbox.evaluate(ind)
-
-    # 진화 과정
-    for gen in range(ngen):
-        best_fitness = tools.selBest(population, 1)[0].fitness.values[0]
-        best_individuals = [ind for ind in population if ind.fitness.values[0] == best_fitness]
-        elite_individuals = tools.selBest(population, elitism_size)
-        elite_individuals = list(map(toolbox.clone, elite_individuals))
-        
-        offspring = toolbox.select(population, len(population) - len(best_individuals) - len(elite_individuals))
-        offspring = list(map(toolbox.clone, offspring))
-        offspring.extend(best_individuals)
-        offspring.extend(elite_individuals)
-        
-        # 교차 연산
-        for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < cxpb:
-                toolbox.mate(child1, child2)
-                del child1.fitness.values
-                del child2.fitness.values
-
-        # 변이 연산
-        mutpb = min(0.3 + gen * 0.01, mutpb)
-        for mutant in offspring:
-            if random.random() < mutpb:
-                toolbox.mutate(mutant)
-                del mutant.fitness.values
-
-        # 적합도 평가
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = list(map(toolbox.evaluate, invalid_ind))
-        for ind, fit in zip(invalid_ind, fitnesses):
-            ind.fitness.values = fit
-
-        # 엘리트 개체를 다음 세대로 유지
-        population[:] = offspring
-
-        # 세대별 최고 적합도 및 EOQ, SS 값 출력
-        best_ind = tools.selBest(population, 1)[0]
-        EOQ = binary_to_int(best_ind[:EOQ_BITS], EOQ_LOW, EOQ_HIGH)
-        SS = binary_to_int(best_ind[EOQ_BITS:], SS_LOW, SS_HIGH)
-        print(f"세대 {gen+1}, 최고 fitness: {best_ind.fitness.values[0]:,.0f}, EOQ: {EOQ}, SS: {SS}")
-
-    # 최종 결과 출력
-    best_fitness = tools.selBest(population, 1)[0].fitness.values[0]
-    best_individuals = [ind for ind in population if ind.fitness.values[0] == best_fitness]
-
-    #print(f"최종 최고 fitness: {best_fitness:,.0f}")
-    results = set()
-    for ind in best_individuals:
-        EOQ = binary_to_int(ind[:EOQ_BITS], EOQ_LOW, EOQ_HIGH)
-        SS = binary_to_int(ind[EOQ_BITS:], SS_LOW, SS_HIGH)
-        results.add((EOQ, SS))  # 중복 제거
-
-    results = list(results)  # 리스트로 변환하여 반환
-    for eoq, ss in results:
-        print(f"EOQ = {eoq}, SS = {ss}")
-
-    return results
-
 def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_levels_df_result, orders_df_result, target, initial_stock):
     fig = go.Figure()
     # Safety Stock 라인
@@ -664,6 +764,9 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         name='Current Stock',
         marker=dict(symbol='circle')
     ))
+
+    max_y_value = max(safety_stock, max(rop_values_result), stock_levels_df_result['Stock'].max()) * 1.2
+
     fig.update_layout(
         autosize=True, 
         title={
@@ -671,13 +774,13 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
                     f'<br><span style="font-size:24px;""font-weight:normal;">초기재고: {initial_stock:.2f} SS: {safety_stock:.2f}</span>',
             'x': 0.5, 'xanchor': 'center'
         },
-        margin=dict(l=0, r=0, t=180, b=0),  # 여백 설정으로 제목이 짤리지 않도록
+        margin=dict(l=0, r=0, t=50, b=0),  # 여백 설정으로 제목이 짤리지 않도록
         xaxis_title='날짜', yaxis_title='재고량', font=dict(size=36),
         xaxis=dict(titlefont=dict(size=24), tickformat='%Y-%m-%d', tickmode='linear',
             dtick=604800000.0, tickfont=dict(size=24)
         ),
-        yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24)),
+        yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24), range=[-10, max_y_value]),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=26)),
-        width=1800, height=600, hoverlabel=dict(font_size=36)
+        width=2400, height=800, hoverlabel=dict(font_size=36)
     )
     return fig

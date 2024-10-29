@@ -162,6 +162,7 @@ if st.session_state['parameters_loaded']:
             lead_time_std = config['Lead Time Standard Deviation (Days)']
             maintenance_mu = config['maintenance_mu']
             maintenance_std = config['maintenance_std']
+            item_name = config['품명']
             # 데이터를 session_state에 저장
             st.session_state['data_dict'] = data_dict
             st.session_state['target'] = target
@@ -175,6 +176,7 @@ if st.session_state['parameters_loaded']:
             st.session_state['lead_time_std'] = lead_time_std
             st.session_state['maintenance_mu'] = maintenance_mu
             st.session_state['maintenance_std'] = maintenance_std
+            st.session_state["item_name"] = item_name
 
             # 시뮬레이션이 시작된 후에만 라디오 버튼이 표시되도록 조건 추가
             col10, col11, col12, col13 = st.columns(4)
