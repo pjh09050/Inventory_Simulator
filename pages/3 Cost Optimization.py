@@ -57,12 +57,12 @@ if st.checkbox('Load parameters'):
     try:
         yaml_files = [f for f in os.listdir() if f.endswith('.yaml') and f != 'meta_info.yaml']
         if yaml_files:
-            load_filename = st.selectbox('Select a YAML file to load', yaml_files)
+            st.session_state['load_filename'] = st.selectbox('Select a YAML file to load', yaml_files)
             if st.button('Load parameters(yaml 파일)'):
-                with open(load_filename, 'r', encoding='utf-8') as file:
+                with open(st.session_state['load_filename'], 'r', encoding='utf-8') as file:
                     config = yaml.safe_load(file)
                 st.session_state['config'] = config
-                st.markdown(f'{load_filename} 파라미터 로드 완료')
+                st.success(f'{st.session_state["load_filename"]} 파라미터 로드 완료')
                 st.session_state['parameters_loaded'] = True
         else:
             st.write("No YAML files found.")
@@ -250,6 +250,7 @@ else:
                     <span style="font-weight: bold; color: #FF6347;">선택한 SS:</span> {st.session_state["selected_ss"]}
                 </div>
             """, unsafe_allow_html=True)
+
         if st.checkbox("그래프 보기") and st.session_state.get("optimization_complete", False):
             st.session_state['type'] = "optimal"
             stock_levels_df_result, pending_orders_result, orders_df_result, rop_values_result, dates, st.session_state['total_cost_value'] = total_cost_result(
@@ -305,15 +306,29 @@ else:
                     f"<div style='flex: 10; padding: 1px;'>수량</div>"
                     f"</div>", unsafe_allow_html=True
                 )
-                
-                # Data rows with borders
                 for idx, row in minus_df_display.iterrows():
                     st.markdown(
                         f"<div style='display: flex; font-size: 18px; border-bottom: 0.5px solid #e0e0e0; padding: 5px;'>"
                         f"<div style='flex: 1; padding: 1px;'>{row['날짜']}</div>"
                         f"<div style='flex: 10; padding: 1px;'>{row['수량']}</div>"
                         f"</div>", unsafe_allow_html=True
-        )
+                )
+            new_filename = st.text_input("결과를 저장할 파일 이름:", f"{st.session_state['load_filename'].split('.')[0]}_{st.session_state['selected_eoq']}_{st.session_state['selected_ss']}.yaml")
+            if st.button("결과 저장"):
+                try:
+                    with open(st.session_state['load_filename'], 'r', encoding='utf-8') as file:
+                        original_data = ordered_load(file)
+                    new_results = OrderedDict({
+                        "EOQ": int(st.session_state.get("selected_eoq")),
+                        "Optimal_Safety_Stock": int(st.session_state.get("selected_ss")),
+                        "Cost": float(st.session_state.get("total_cost_value"))
+                    })
+                    combined_data = OrderedDict(list(original_data.items()) + list(new_results.items()))
+                    with open(new_filename, "w", encoding="utf-8") as file:
+                        ordered_dump(combined_data, file, allow_unicode=True, default_flow_style=False)
+                    st.success(f"Results saved to {new_filename}")
+                except Exception as e:
+                    st.error(f"Error saving results: {e}")
     else:
         st.warning("최적화가 실행되지 않았습니다. '최적화 실행'을 먼저 실행시켜주세요.")
         

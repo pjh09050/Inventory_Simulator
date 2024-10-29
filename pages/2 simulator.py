@@ -186,13 +186,15 @@ if st.session_state['parameters_loaded']:
             if simulation_type == 'EOQ 시뮬레이션':
                 simulation_type = 'optimal'
                 with col11:
-                    EOQ = st.number_input("EOQ", value=int(st.session_state['initial_stock']), step=1, format="%d")
+                    EOQ = st.number_input("EOQ", value=0, step=1, format="%d")
+                with col12:
+                    SS = st.number_input("Safety Stock", value=0, step=1, format="%d")
                 if st.checkbox('EOQ 시뮬레이션 시작'):
                     st.session_state['EOQ_simulation_started'] = True
                     status_text = st.empty()
                     status_text.write("EOQ 시뮬레이션 실행 중...")
                     warmup_stock_levels_df, warmup_pending_orders_df, warmup_order_dates, warmup_arrival_dates, warmup_rop_values, warmup_dates = warmup_simulator(
-                        EOQ, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'],
+                        EOQ, SS, st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'],
                         st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['start_date'], st.session_state['end_date'], 
                         st.session_state['run_start_date'], simulation_type
                     )
@@ -207,7 +209,7 @@ if st.session_state['parameters_loaded']:
                         st.session_state['arrival_dates'] = []
                         st.session_state['pending_orders'] = pd.DataFrame() 
                     stock_levels_df_result, pending_orders_result, orders_df_result, rop_values_result, dates, simulation_info = run_simulation(
-                        EOQ, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'], st.session_state['start_date'], st.session_state['end_date'], 
+                        EOQ, SS, st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'], st.session_state['start_date'], st.session_state['end_date'], 
                         st.session_state['run_start_date'], st.session_state['run_end_date'], st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['order_dates'], 
                         st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
                     )
@@ -217,7 +219,7 @@ if st.session_state['parameters_loaded']:
                     st.session_state['rop_values_result'] = rop_values_result
                     st.session_state['dates'] = dates
                     time.sleep(0.5)
-                    fig = plot_inventory_simulation(st.session_state['dates'], st.session_state['safety_stock'], st.session_state['rop_values_result'], st.session_state['stock_levels_df_result'], 
+                    fig = plot_inventory_simulation(st.session_state['dates'], SS, st.session_state['rop_values_result'], st.session_state['stock_levels_df_result'], 
                                     st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"])
                     st.plotly_chart(fig)
                     status_text.write("EOQ 시뮬레이션 실행 완료")

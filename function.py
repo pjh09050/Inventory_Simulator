@@ -9,6 +9,7 @@ import numpy as np
 import plotly.graph_objects as go
 import random
 import math
+from collections import OrderedDict
 from deap import base, creator, tools, algorithms
 
 def load_meta_info(meta_path):
@@ -784,3 +785,15 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         width=2400, height=800, hoverlabel=dict(font_size=36)
     )
     return fig
+
+def ordered_load(stream, Loader=yaml.SafeLoader, object_pairs_hook=OrderedDict):
+    class OrderedLoader(Loader):
+        pass
+    OrderedLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,lambda loader, node: object_pairs_hook(loader.construct_pairs(node)))
+    return yaml.load(stream, OrderedLoader)
+
+def ordered_dump(data, stream=None, Dumper=yaml.SafeDumper, **kwds):
+    class OrderedDumper(Dumper):
+        pass
+    OrderedDumper.add_representer(OrderedDict,lambda dumper, data: dumper.represent_mapping(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data.items()))
+    return yaml.dump(data, stream, OrderedDumper, **kwds)
