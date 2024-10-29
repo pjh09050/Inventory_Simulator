@@ -398,7 +398,7 @@ def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_da
 
     stock_levels_df = pd.DataFrame(stock_levels)
     stock_levels_df.columns = ['Stock', 'Date']
-    return stock_levels_df, pending_orders, orders_df, rop_values, dates, simulation_info
+    return stock_levels_df, pending_orders, orders_df, rop_values, dates, simulation_info, minus
 
 def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, run_start_date, run_end_date, type, 
                   lead_time_mu, lead_time_std, order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param):
@@ -738,6 +738,9 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
     return stock_levels_df, pending_orders, orders_df, rop_values, dates, total_cost_value
 
 def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_levels_df_result, orders_df_result, target, initial_stock):
+    arrival_dates = orders_df_result['Arrival_date']
+    order_dates = orders_df_result['Order_Date']
+
     fig = go.Figure()
     # Safety Stock 라인
     fig.add_trace(go.Scatter(
@@ -752,7 +755,7 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         x=dates,
         y=rop_values_result,
         mode='lines+markers',
-        line=dict(color='green', dash='dash'),
+        line=dict(color='green', dash='dash', width=2),
         name='Reorder Point',
         marker=dict(symbol='circle')
     ))
@@ -766,22 +769,80 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         marker=dict(symbol='circle')
     ))
 
-    max_y_value = max(safety_stock, max(rop_values_result), stock_levels_df_result['Stock'].max()) * 1.2
+    for date in arrival_dates:
+        fig.add_shape(
+            type="line",
+            x0=date, y0=0, x1=date, y1=stock_levels_df_result['Stock'].max() * 1.3,
+            line=dict(color="orange", width=1, dash="dash"),
+            showlegend=False,
+            xref="x", yref="y",
+        )
 
+    for date in order_dates:
+        fig.add_shape(
+            type="line",
+            x0=date, y0=-5, x1=date, y1=stock_levels_df_result['Stock'].max() * 1.3,
+            line=dict(color="grey", width=1, dash="dash"),
+        )
+
+    for date in arrival_dates:
+        if date == arrival_dates[0]:
+            fig.add_trace(go.Scatter(
+                x=[date],
+                y=[0],
+                mode="lines+markers",
+                marker=dict(size=8, color="orange"),
+                name="Arrival Date",
+                hovertemplate="<span style='color:orange'>Arrival Date</span> (%{x|%Y-%m-%d})<extra></extra>",
+                showlegend=True
+            ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=[date],
+                y=[0],
+                mode="lines+markers",
+                marker=dict(size=8, color="orange"),
+                name="Arrival Date",
+                hovertemplate="<span style='color:orange'>Arrival Date</span> (%{x|%Y-%m-%d})<extra></extra>",
+                showlegend=False
+            ))
+
+    for date in order_dates:
+        if date == order_dates[0]:
+            fig.add_trace(go.Scatter(
+                x=[date],
+                y=[-5],
+                mode="lines+markers",
+                marker=dict(size=8, color="grey"),
+                name="Order Date",
+                hovertemplate="<span style='color:grey'>Order Date</span> (%{x|%Y-%m-%d})<extra></extra>",
+                showlegend=True
+            ))
+        else:
+            fig.add_trace(go.Scatter(
+                x=[date],
+                y=[-5],
+                mode="lines+markers",
+                marker=dict(size=8, color="grey"),
+                name="Order Date",
+                hovertemplate="<span style='color:grey'>Order Date</span> (%{x|%Y-%m-%d})<extra></extra>",
+                showlegend=False
+            ))      
+
+    max_y_value = max(safety_stock, max(rop_values_result), stock_levels_df_result['Stock'].max()) * 1.2
     fig.update_layout(
         autosize=True, 
         title={
-            'text': f'<span style="font-size:36px;">{target}</span><br>'
-                    f'<br><span style="font-size:24px;""font-weight:normal;">초기재고: {initial_stock:.2f} SS: {safety_stock:.2f}</span>',
+            'text': f'<span style="font-size:36px;">{target}</span><br>',
             'x': 0.5, 'xanchor': 'center'
         },
-        margin=dict(l=0, r=0, t=50, b=0),  # 여백 설정으로 제목이 짤리지 않도록
+        margin=dict(l=0, r=0, t=150, b=0),  # 여백 설정으로 제목이 짤리지 않도록
         xaxis_title='날짜', yaxis_title='재고량', font=dict(size=36),
         xaxis=dict(titlefont=dict(size=24), tickformat='%Y-%m-%d', tickmode='linear',
-            dtick=604800000.0, tickfont=dict(size=24)
+            dtick=604800000.0, tickfont=dict(size=24), range = [min(dates)-pd.Timedelta(days=0.5), max(dates)+pd.Timedelta(days=0.5)]
         ),
         yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24), range=[-10, max_y_value]),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=26)),
+        legend=dict(orientation="h", yanchor="bottom", y=1, xanchor="right", x=1, font=dict(size=26)),
         width=2400, height=800, hoverlabel=dict(font_size=36)
     )
     return fig

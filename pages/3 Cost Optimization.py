@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime
 from function import *
 import time
-import threading
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rc
@@ -135,8 +134,8 @@ else:
             st.session_state["EOQ_LOW"] = st.slider("EOQ_LOW", min_value=0, max_value=100, value=10, step=1)
             st.session_state["EOQ_HIGH"] = st.slider("EOQ_HIGH", min_value=0, max_value=200, value=50, step=1)
         with col2:
-            st.session_state["SS_LOW"] = st.slider("SS_LOW", min_value=0, max_value=100, value=10, step=1)
-            st.session_state["SS_HIGH"] = st.slider("SS_HIGH", min_value=0, max_value=100, value=50, step=1)
+            st.session_state["SS_LOW"] = st.slider("Safety Stock_LOW", min_value=0, max_value=100, value=10, step=1)
+            st.session_state["SS_HIGH"] = st.slider("Safety Stock_HIGH", min_value=0, max_value=100, value=50, step=1)
 
         st.markdown("##### 비용 파라미터 설정")
         col3, col4, col5, col6, col7 = st.columns(5)
@@ -163,6 +162,7 @@ else:
         if 'meta_dict' in st.session_state:
             meta_dict = st.session_state['meta_dict']
         else:
+
             st.error("Meta dict 변수가 선언되어있지 않습니다. 경로를 다시 정의해주세요")
             meta_path = st.text_input("Meta Path", './data/project_zwms03s_df.pickle')
             
@@ -238,16 +238,18 @@ else:
 
     if st.session_state.get('optimization_complete', False) and optimize_checkbox:
         if 'ga_result' in st.session_state:
-            st.write("다음은 모든 EOQ와 SS 조합입니다:")
-            options = [f"EOQ = {eoq}, SS = {ss}" for eoq, ss in st.session_state['ga_result']]
+            st.write("다음은 모든 EOQ와 Safety Stock 조합입니다:")
+            options = [f"EOQ = {eoq}, Safety Stock = {ss}" for eoq, ss in st.session_state['ga_result']]
             selected_option = st.selectbox("최적의 조합을 선택하세요:", options)
 
             selected_index = options.index(selected_option)
             st.session_state["selected_eoq"], st.session_state["selected_ss"] = st.session_state['ga_result'][selected_index]
             st.markdown(f"""
                 <div style="text-align: center; font-size: 24px; color: #333;">
-                    <span style="font-weight: bold; color: #007BFF;">선택한 EOQ:</span> {st.session_state["selected_eoq"]}<br>
-                    <span style="font-weight: bold; color: #FF6347;">선택한 SS:</span> {st.session_state["selected_ss"]}
+                    <span style="font-weight: bold; color: #007BFF; margin-right: 5px;">선택한 EOQ:</span>
+                    <span style="margin-right: 40px;">{st.session_state["selected_eoq"]}</span>
+                    <span style="font-weight: bold; color: #FF6347; margin-right: 5px;">선택한 SS:</span>
+                    <span>{st.session_state["selected_ss"]}</span>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -284,12 +286,15 @@ else:
             st.session_state['rop_values_result'] = rop_values_result
             st.session_state['dates'] = dates
             time.sleep(0.5)
+            # st.markdown(f"<h4 style='color: black;'>자재번호: {st.session_state['target']}</h3>", unsafe_allow_html=True)
             st.markdown(f"<h4 style='color: black;'>자재명: {st.session_state['item_name']}</h3>", unsafe_allow_html=True)
             st.markdown(
                 f"""
                 <div style="display: flex; justify-content: flex-start; align-items: center;">
-                    <h4 style="color: blue;">EOQ: {st.session_state['selected_eoq']}, Safety Stock: {st.session_state['selected_ss']}</h4>
-                    <h4 style="color: green; margin-right: 10px;">총 비용: {st.session_state['total_cost_value']:,}</h4>
+                    <h4 style="color: black; margin-right: 15px;">Initial Stock: {st.session_state["initial_stock"]}</h4>
+                    <h4 style="color: black; margin-right: 15px;">EOQ: {st.session_state['selected_eoq']}</h4>
+                    <h4 style="color: black; margin-right: 15px;">Safety Stock: {st.session_state['selected_ss']}</h4>
+                    <h4 style="color: red; margin-right: 15px;">총 비용: {int(st.session_state['total_cost_value']):,}</h4>
                 </div>
                 """, 
                 unsafe_allow_html=True
@@ -313,9 +318,9 @@ else:
                         f"<div style='flex: 10; padding: 1px;'>{row['수량']}</div>"
                         f"</div>", unsafe_allow_html=True
                 )
-            new_filename = st.text_input("결과를 저장할 파일 이름:", f"{st.session_state['load_filename'].split('.')[0]}_{st.session_state['selected_eoq']}_{st.session_state['selected_ss']}.yaml")
-            if st.button("결과 저장"):
-                try:
+            if 'load_filename' in st.session_state:
+                new_filename = st.text_input("결과를 저장할 파일 이름:", f"{st.session_state['load_filename'].split('.')[0]}_{st.session_state['selected_eoq']}_{st.session_state['selected_ss']}.yaml")
+                if st.button("결과 저장"):
                     with open(st.session_state['load_filename'], 'r', encoding='utf-8') as file:
                         original_data = ordered_load(file)
                     new_results = OrderedDict({
@@ -327,10 +332,11 @@ else:
                     with open(new_filename, "w", encoding="utf-8") as file:
                         ordered_dump(combined_data, file, allow_unicode=True, default_flow_style=False)
                     st.success(f"Results saved to {new_filename}")
-                except Exception as e:
-                    st.error(f"Error saving results: {e}")
+            else:
+                st.error(f"결과를 저장할 파라미터를 먼저 load 해주세요")
+
     else:
-        st.warning("최적화가 실행되지 않았습니다. '최적화 실행'을 먼저 실행시켜주세요.")
+        st.warning("최적화가 실행되지 않았습니다. '파라미터 설정' 후 최적화를 실행시켜주세요.")
         
     # 체크박스를 끄면 최적화가 다시 필요하게 설정
     if not optimize_checkbox:

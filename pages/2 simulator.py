@@ -77,7 +77,6 @@ if set_param:
         'run_end_date': run_end_date.strftime('%Y-%m-%d'),
         'safety_stock': safety_stock,
         'initial_stock': initial_stock,
-        # 'reorder_point': reorder_point,
         'maintenance_mu': maintenance_mu,
         'maintenance_std': maintenance_std
     }
@@ -98,7 +97,6 @@ if set_param:
                 'run_end_date': run_end_date.strftime('%Y-%m-%d'),
                 'safety_stock': safety_stock,
                 'initial_stock': initial_stock,
-                # 'reorder_point': reorder_point,
                 'maintenance_mu': maintenance_mu,
                 'maintenance_std': maintenance_std
             })
@@ -112,7 +110,6 @@ if set_param:
 
 ################################################################################################
 st.subheader('Run simulation')
-# st.markdown("---")
 # 초기 상태 설정
 if 'run_simulation_started' not in st.session_state:
     st.session_state['run_simulation_started'] = False
@@ -149,34 +146,21 @@ if st.session_state['parameters_loaded']:
         st.session_state['run_simulation_started'] = True
         if 'config' in st.session_state:
             config = st.session_state['config']
-            data_dict = eda(config['data_path'])
-            target = config['target']
-            start_date = find_closest_date(pd.to_datetime(config['start_date']), data_dict[target], '날짜')
-            end_date = pd.to_datetime(config['end_date'])
-            run_start_date = pd.to_datetime(config['run_start_date'])
-            run_end_date = pd.to_datetime(config['run_end_date'])
-            safety_stock = config['safety_stock']
-            data_dict[target]['날짜'] = pd.to_datetime(data_dict[target]['날짜'])
-            initial_stock = data_dict[target].groupby(['날짜']).sum(numeric_only=True)['수량'].loc[start_date]
-            lead_time_mu = config['납기(일)-Average Lead Time (Days) /Max/Min.1']
-            lead_time_std = config['Lead Time Standard Deviation (Days)']
-            maintenance_mu = config['maintenance_mu']
-            maintenance_std = config['maintenance_std']
-            item_name = config['품명']
-            # 데이터를 session_state에 저장
-            st.session_state['data_dict'] = data_dict
-            st.session_state['target'] = target
-            st.session_state['start_date'] = start_date
-            st.session_state['end_date'] = end_date
-            st.session_state['run_start_date'] = run_start_date
-            st.session_state['run_end_date'] = run_end_date
-            st.session_state['safety_stock'] = safety_stock
-            st.session_state['initial_stock'] = initial_stock
-            st.session_state['lead_time_mu'] = lead_time_mu
-            st.session_state['lead_time_std'] = lead_time_std
-            st.session_state['maintenance_mu'] = maintenance_mu
-            st.session_state['maintenance_std'] = maintenance_std
-            st.session_state["item_name"] = item_name
+            # data_dict = eda(config['data_path'])
+            st.session_state['data_dict'] = eda(config['data_path'])
+            st.session_state['target'] = config['target']
+            st.session_state['start_date'] = find_closest_date(pd.to_datetime(config['start_date']), st.session_state['data_dict'][st.session_state['target'] ], '날짜')
+            st.session_state['end_date'] = pd.to_datetime(config['end_date'])
+            st.session_state['run_start_date'] = pd.to_datetime(config['run_start_date'])
+            st.session_state['run_end_date'] = pd.to_datetime(config['run_end_date'])
+            st.session_state['safety_stock'] = config['safety_stock']
+            st.session_state['data_dict'][st.session_state['target'] ]['날짜'] = pd.to_datetime(st.session_state['data_dict'][st.session_state['target'] ]['날짜'])
+            st.session_state['initial_stock'] = st.session_state['data_dict'][st.session_state['target'] ].groupby(['날짜']).sum(numeric_only=True)['수량'].loc[st.session_state['start_date']]
+            st.session_state['lead_time_mu'] = config['납기(일)-Average Lead Time (Days) /Max/Min.1']
+            st.session_state['lead_time_std'] = config['Lead Time Standard Deviation (Days)']
+            st.session_state['maintenance_mu'] = config['maintenance_mu']
+            st.session_state['maintenance_std'] = config['maintenance_std']
+            st.session_state["item_name"] = config['품명']
 
             # 시뮬레이션이 시작된 후에만 라디오 버튼이 표시되도록 조건 추가
             col10, col11, col12, col13 = st.columns(4)
@@ -208,20 +192,17 @@ if st.session_state['parameters_loaded']:
                         st.session_state['order_values'] = []
                         st.session_state['arrival_dates'] = []
                         st.session_state['pending_orders'] = pd.DataFrame() 
-                    stock_levels_df_result, pending_orders_result, orders_df_result, rop_values_result, dates, simulation_info = run_simulation(
+
+                    st.session_state['stock_levels_df_result'], st.session_state['pending_orders_result'], st.session_state['orders_df_result'], st.session_state['rop_values_result'], st.session_state['dates'], st.session_state['simulation_info'], st.session_state['minus_value'] = run_simulation(
                         EOQ, SS, st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'], st.session_state['start_date'], st.session_state['end_date'], 
                         st.session_state['run_start_date'], st.session_state['run_end_date'], st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['order_dates'], 
                         st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
                     )
-                    st.session_state['stock_levels_df_result'] = stock_levels_df_result
-                    st.session_state['pending_orders_result'] = pending_orders_result
-                    st.session_state['orders_df_result'] = orders_df_result
-                    st.session_state['rop_values_result'] = rop_values_result
-                    st.session_state['dates'] = dates
                     time.sleep(0.5)
                     fig = plot_inventory_simulation(st.session_state['dates'], SS, st.session_state['rop_values_result'], st.session_state['stock_levels_df_result'], 
                                     st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"])
-                    st.plotly_chart(fig)
+                    st.session_state['fig'] = fig
+                    st.plotly_chart(st.session_state['fig'])
                     status_text.write("EOQ 시뮬레이션 실행 완료")
                     if st.button("End simulation"):
                         keys_to_preserve = ['parameters_loaded']
@@ -234,13 +215,29 @@ if st.session_state['parameters_loaded']:
                         st.success("Simulation reset! Please reload parameters to start again!")
                         time.sleep(1.5)
                         st.rerun()
-                    if st.checkbox('Simulation Information'):
-                        st.markdown(f"{simulation_info}")
+                    # if st.checkbox('Simulation Information'):
+                    minus_df_display = st.session_state['minus_value'].copy().reset_index()
+                    minus_df_display['날짜'] = minus_df_display['날짜'].dt.strftime('%Y-%m-%d')
+                    with st.expander("출고시점 및 출고량 보기", expanded=False):
+                        st.markdown(
+                            f"<div style='display: flex; font-size: 20px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 1px; margin-bottom: 5px;'>"
+                            f"<div style='flex: 1; padding: 1px;'>날짜</div>"
+                            f"<div style='flex: 5; padding: 1px;'>수량</div>"
+                            f"</div>", unsafe_allow_html=True
+                        )
+                        for idx, row in minus_df_display.iterrows():
+                            st.markdown(
+                                f"<div style='display: flex; font-size: 18px; border-bottom: 0.5px solid #e0e0e0; padding: 5px;'>"
+                                f"<div style='flex: 1; padding: 1px;'>{row['날짜']}</div>"
+                                f"<div style='flex: 5; padding: 1px;'>{row['수량']}</div>"
+                                f"</div>", unsafe_allow_html=True
+                        )
+                    st.markdown(f"{st.session_state['simulation_info']}")
 
             elif simulation_type == '분포 시뮬레이션':
                 status_text = st.empty()
-                
                 simulation_type = 'distribution'
+
                 warmup_stock_levels_df, warmup_pending_orders_df, warmup_order_dates, warmup_arrival_dates, warmup_rop_values, warmup_dates = warmup_simulator(
                     None, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'],
                     st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['start_date'], st.session_state['end_date'], 
@@ -255,24 +252,23 @@ if st.session_state['parameters_loaded']:
                     st.session_state['order_dates'] = []
                     st.session_state['order_values'] = []
                     st.session_state['arrival_dates'] = []
-                    st.session_state['pending_orders'] = pd.DataFrame() 
-                stock_levels_df_result, pending_orders_result, orders_df_result, rop_values_result, dates, simulation_info = run_simulation(
+                    st.session_state['pending_orders'] = pd.DataFrame()
+
+                st.session_state['stock_levels_df_result'], st.session_state['pending_orders_result'], st.session_state['orders_df_result'], st.session_state['rop_values_result'], st.session_state['dates'], st.session_state['simulation_info'], st.session_state['minus_value'] = run_simulation(
                     None, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'], st.session_state['start_date'], st.session_state['end_date'], 
                     st.session_state['run_start_date'], st.session_state['run_end_date'], st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['order_dates'], 
                     st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
                 )
-                st.session_state['stock_levels_df_result'] = stock_levels_df_result
-                st.session_state['pending_orders_result'] = pending_orders_result
-                st.session_state['orders_df_result'] = orders_df_result
-                st.session_state['rop_values_result'] = rop_values_result
-                st.session_state['dates'] = dates
+
                 if st.checkbox('분포 시뮬레이션 시작'):
                     status_text.write("분포 시뮬레이션 실행 중...")
                     time.sleep(0.5)
                     fig = plot_inventory_simulation(st.session_state['dates'], st.session_state['safety_stock'], st.session_state['rop_values_result'], st.session_state['stock_levels_df_result'], 
                                         st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"])
-                    st.plotly_chart(fig)
+                    st.session_state['fig'] = fig
+                    st.plotly_chart(st.session_state['fig'])
                     status_text.write("분포 시뮬레이션 실행 완료")
+
                     if st.button("End simulation"):
                         for key in list(st.session_state.keys()):
                             if key != 'parameters_loaded':
@@ -282,8 +278,27 @@ if st.session_state['parameters_loaded']:
                         st.success("Simulation reset! Please reload parameters to start again!")
                         time.sleep(1.5)
                         st.rerun()
-                    if st.checkbox('Simulation Information'):
-                        st.markdown(f"{simulation_info}")
+
+                    # if st.checkbox('Simulation Information'):
+                    minus_df_display = st.session_state['minus_value'].copy().reset_index()
+                    minus_df_display['날짜'] = minus_df_display['날짜'].dt.strftime('%Y-%m-%d')
+                    with st.expander("출고시점 및 출고량 보기", expanded=False):
+                        st.markdown(
+                            f"<div style='display: flex; font-size: 20px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 1px; margin-bottom: 5px;'>"
+                            f"<div style='flex: 1; padding: 1px;'>날짜</div>"
+                            f"<div style='flex: 5; padding: 1px;'>수량</div>"
+                            f"</div>", unsafe_allow_html=True
+                        )
+                        for idx, row in minus_df_display.iterrows():
+                            st.markdown(
+                                f"<div style='display: flex; font-size: 18px; border-bottom: 0.5px solid #e0e0e0; padding: 5px;'>"
+                                f"<div style='flex: 1; padding: 1px;'>{row['날짜']}</div>"
+                                f"<div style='flex: 5; padding: 1px;'>{row['수량']}</div>"
+                                f"</div>", unsafe_allow_html=True
+                        )
+                    st.markdown(f"{st.session_state['simulation_info']}")
+                else:
+                    st.error(f"시뮬레이션을 실행시켜주세요")
         else:
             st.markdown('yaml 파일을 load 해주세요.')
     else:
