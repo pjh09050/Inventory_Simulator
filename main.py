@@ -43,3 +43,16 @@ st.markdown("""
 
 # Title and header
 st.title('Inventory Simulator')
+
+st.markdown('### 재고관리 시뮬레이션 및 최적화')
+
+col0, col1, col2 = st.columns([1,1,1])
+
+with col0:
+    st.markdown('1')
+    
+with col1:
+    st.markdown('2')
+    
+with col2:
+    st.markdown('3')
