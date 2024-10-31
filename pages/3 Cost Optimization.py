@@ -148,12 +148,12 @@ else:
         with col6:
             st.session_state["delta"] = st.number_input("delta", min_value=0, max_value=1000000, value=700000, step=10000)
         with col7:
-            st.session_state["lambda_param"] = st.number_input("lambda_param", min_value=0, max_value=10, value=3, step=1)
+            st.session_state["lambda_param"] = st.number_input("lambda", min_value=0, max_value=10, value=3, step=1)
 
         st.markdown("##### Genetic Algorithm 파라미터 설정")
         col8, col9 = st.columns(2)
         with col8:
-            st.session_state["population_size"] = st.number_input("초기 개체 수 (population size)", min_value=1, max_value=100, value=15, step=1)
+            st.session_state["population_size"] = st.number_input("초기 개체 수 (population size)", min_value=1, max_value=100, value=10, step=1)
             st.session_state["NGEN"] = st.number_input("세대 수 (NGEN)", min_value=1, max_value=1000, value=50, step=1)
         with col9:
             st.session_state["CXPB"] = st.slider("교차 확률 (CXPB)", min_value=0.0, max_value=1.0, value=0.8, step=0.1)
