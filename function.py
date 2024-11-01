@@ -757,7 +757,7 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         mode='lines+markers',
         line=dict(color='green', dash='dash', width=2),
         name='Reorder Point',
-        marker=dict(symbol='circle')
+        marker=dict(size=8, symbol='circle')
     ))
     # Current Stock 라인
     fig.add_trace(go.Scatter(
@@ -766,7 +766,7 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         mode='lines+markers',
         line=dict(color='blue'),
         name='Current Stock',
-        marker=dict(symbol='circle')
+        marker=dict(size=8, symbol='circle')
     ))
 
     for date in arrival_dates:
@@ -774,8 +774,6 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
             type="line",
             x0=date, y0=0, x1=date, y1=stock_levels_df_result['Stock'].max() * 1.3,
             line=dict(color="orange", width=1, dash="dash"),
-            showlegend=False,
-            xref="x", yref="y",
         )
 
     for date in order_dates:
