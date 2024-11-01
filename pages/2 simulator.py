@@ -146,7 +146,6 @@ if st.session_state['parameters_loaded']:
         st.session_state['run_simulation_started'] = True
         if 'config' in st.session_state:
             config = st.session_state['config']
-            # data_dict = eda(config['data_path'])
             st.session_state['data_dict'] = eda(config['data_path'])
             st.session_state['target'] = config['target']
             st.session_state['start_date'] = find_closest_date(pd.to_datetime(config['start_date']), st.session_state['data_dict'][st.session_state['target'] ], '날짜')
