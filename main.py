@@ -27,13 +27,16 @@ st.markdown("""
     }
     /* Increase font size for all elements */
     html, body {
-        font-size: 1.5rem; /* Global font size adjustment */
+        font-size: 1.3rem; /* Global font size adjustment */
     }
     h1 {
-        font-size: 2rem; /* Increase title size */
+        font-size: 1.5rem; /* Increase title size */
     }
     h2, h3 {
         font-size: 1.5rem; /* Increase subheader size */
+    }
+    h4 {
+        font-size: 1.3rem; /* Increase subheader size */
     }
     .stButton button {
         font-size: 1.2rem; /* Button font size */

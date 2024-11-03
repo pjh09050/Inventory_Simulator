@@ -45,7 +45,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Title and header
-st.subheader('Parameter settings')
+st.subheader('Parameter Load')
 
 # 초기 세팅
 if 'parameters_loaded' not in st.session_state:
