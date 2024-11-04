@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime
 from function import *
 import time
-import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rc
 import platform
