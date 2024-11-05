@@ -404,8 +404,9 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
     
     current_stock = initial_stock
     stock_levels = []
-    lead_time_dates = []
+    lead_time_list = []
     rop_values = []
+    expected_demand_list = []
     orders_df = pd.DataFrame(columns=['Order_Date', 'Order_Value', 'Arrival_date'])
 
     # 시뮬레이션 세팅
@@ -413,6 +414,7 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
 
     lambda_value, order_mu, order_std = moving_order_history(data_dict[target], start_date, end_date)
     dates = pd.date_range(start=run_start_date, end=run_end_date, freq='D')
+
     arrival_date = pd.Timestamp(run_start_date)
     minus = new_order(lambda_value, order_mu, order_std, run_start_date, run_end_date)
     minus = minus.groupby(['날짜']).sum(numeric_only=True)
@@ -434,7 +436,9 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
         else:
             expected_demand_during_lead_time = int(abs(minus_check.mean()) * lead_time * lambda_value)
         reorder_point = expected_demand_during_lead_time + SS
+        expected_demand_list.append(expected_demand_during_lead_time)
         rop_values.append(reorder_point)
+        lead_time_list.append(lead_time)
 
         # 입고량 업데이트
         for index,order in pending_orders.iterrows():
@@ -453,12 +457,11 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
 
         if current_stock <= reorder_point:
             if date < arrival_date:
-                if current_stock - lead_time * lambda_value * abs(np.random.normal(order_mu, order_std)) < SS:
+                if current_stock - expected_demand_during_lead_time < SS:
                     order_value = EOQ 
                     arrival_date = date + pd.Timedelta(days=lead_time)
                     new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
                     pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
-                    lead_time_dates.append(arrival_date-date)
                     orders_input = [date, order_value, arrival_date]
                     orders_df.loc[len(orders_df)] = orders_input
                 else:
@@ -468,7 +471,6 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
                 arrival_date = date + pd.Timedelta(days=lead_time)
                 new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
                 pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
-                lead_time_dates.append(arrival_date-date)
                 orders_input = [date, order_value, arrival_date]
                 orders_df.loc[len(orders_df)] = orders_input
 
@@ -489,8 +491,8 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
             else:
                 tau_counter = 1
 
-            backlog_gap = max(0, total_cost_df['Stock'].iloc[idx-1])
-            backlog_cost = backlog_gap * beta * np.exp(lambda_param * tau_counter)
+            backlog_gap = max(0, abs(total_cost_df['Stock'].iloc[idx-1]))
+            backlog_cost = backlog_gap * meta_dict[target]['이동평균가'] * beta * np.exp(lambda_param * tau_counter)
 
             total_cost_df.at[idx, 'tau'] = tau_counter
             total_cost_df.at[idx, 'backlog_cost'] = backlog_cost
@@ -505,23 +507,19 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
 
     # 총 비용 계산
     total_cost_value = total_cost_df[['backlog_cost', 'inventory_cost', 'order_cost']].abs().sum().sum()
-    return stock_levels_df, pending_orders, orders_df, rop_values, dates, total_cost_value, minus
+    return stock_levels_df, pending_orders, orders_df, rop_values, dates, total_cost_value, minus, lead_time_list, expected_demand_list
 
 def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_date, end_date, 
                           run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
                           order_dates, order_values, arrival_dates, pending_orders,
                           EOQ_LOW=10, EOQ_HIGH=100, SS_LOW=10, SS_HIGH=50, alpha=0.1, beta=50000,
                           gamma=0.35, delta=700000, lambda_param=3, population_size=20, 
-                          ngen=100, cxpb=0.6, mutpb=0.4, elitism_percent=0.02):
+                          ngen=100, cxpb=0.6, mutpb=0.4):
     
     def calculate_bits(value_range):
         """주어진 범위에 맞는 최소 비트 수 계산"""
         low, high = value_range
         return math.ceil(math.log2(high - low + 1))
-
-    def int_to_binary(value, num_bits, low):
-        """정수를 이진수로 변환"""
-        return list(map(int, bin(value - low)[2:].zfill(num_bits)))
 
     def binary_to_int(binary, low, high):
         """이진수를 정수로 변환"""
@@ -533,10 +531,9 @@ def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_dat
         EOQ_binary, SS_binary = individual[:EOQ_BITS], individual[EOQ_BITS:]
         EOQ = binary_to_int(EOQ_binary, EOQ_LOW, EOQ_HIGH)
         SS = binary_to_int(SS_binary, SS_LOW, SS_HIGH)
-        _, _, _, _, _, total_cost_value, _ = total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
+        _, _, _, _, _, total_cost_value, _, _, _ = total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
                           run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
                           order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param)
-        
         return total_cost_value,
 
     # 필요한 비트 수 계산
@@ -560,7 +557,10 @@ def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_dat
 
     # 초기 개체 수 설정
     population = toolbox.population(n=population_size)
-    elitism_size = max(int(len(population) * elitism_percent), 2)
+    if len(population) <= 2:
+        elitism_size = 0
+    else:
+        elitism_size = 2
 
     # 초기 세대 평가
     for ind in population:
@@ -569,15 +569,12 @@ def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_dat
     # 진화 과정
     status_text = st.empty()
     for gen in range(ngen):
-        best_fitness = tools.selBest(population, 1)[0].fitness.values[0]
-        best_individuals = [ind for ind in population if ind.fitness.values[0] == best_fitness]
         elite_individuals = tools.selBest(population, elitism_size)
         elite_individuals = list(map(toolbox.clone, elite_individuals))
         
-        offspring = toolbox.select(population, len(population) - len(best_individuals) - len(elite_individuals))
+        offspring = toolbox.select(population, len(population) - len(elite_individuals))
         offspring = list(map(toolbox.clone, offspring))
-        offspring.extend(best_individuals)
-        offspring.extend(elite_individuals)
+
         
         # 교차 연산
         for child1, child2 in zip(offspring[::2], offspring[1::2]):
@@ -600,7 +597,7 @@ def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_dat
             ind.fitness.values = fit
 
         # 엘리트 개체를 다음 세대로 유지
-        population[:] = offspring
+        population[:] = offspring + elite_individuals
 
         # 세대별 최고 적합도 및 EOQ, SS 값 출력
         best_ind = tools.selBest(population, 1)[0]
@@ -619,28 +616,24 @@ def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_dat
         results.add((EOQ, SS))
 
     results = list(results)
-    _, _, _, _, _, _, minus_value = total_cost_ga(
+    _, _, _, rop_list, _, _, minus_value, lead_time_list, expected_demand_list = total_cost_ga(
         EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
         run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
         order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param
     )
-    return results, minus_value
+    return results, minus_value, rop_list, lead_time_list, expected_demand_list
 
 def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
-               run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
-               order_dates, order_values, arrival_dates, pending_orders,
-               alpha, beta, gamma, delta, lambda_param, minus):
+               run_start_date, run_end_date, order_dates, order_values, arrival_dates, pending_orders,
+               alpha, beta, gamma, delta, lambda_param, minus, rop_list, lead_time_list, expected_demand_list):
     # 초기 재고 설정 및 시뮬레이션 준비
     current_stock = initial_stock
     stock_levels = []
-    lead_time_dates = []
-    rop_values = []
     orders_df = pd.DataFrame(columns=['Order_Date', 'Order_Value', 'Arrival_date'])
 
     # 시뮬레이션 세팅
-    np.random.seed(1)
+    np.random.seed(42)
 
-    lambda_value, order_mu, order_std = moving_order_history(data_dict[target], start_date, end_date)
     dates = pd.date_range(start=run_start_date, end=run_end_date, freq='D')
     arrival_date = pd.Timestamp(run_start_date)
     # minus = new_order(lambda_value, order_mu, order_std, run_start_date, run_end_date)
@@ -650,20 +643,14 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
     # minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
     # minus = minus[['날짜', '수량']].set_index('날짜')
     # minus = minus.sort_index()
-
+    time = 0
     for date in dates:
         minus_stock = 0
         plus_stock = 0
 
-        # lead time 및 reorder point 업데이트
-        lead_time = max(1, abs(int(np.random.normal(lead_time_mu, lead_time_std))))
-        minus_check = minus[minus.index <= date]
-        if minus_check.empty:
-            expected_demand_during_lead_time = int(abs(np.random.normal(order_mu, order_std)) * lead_time * lambda_value)
-        else:
-            expected_demand_during_lead_time = int(abs(minus_check.mean()) * lead_time * lambda_value)
-        reorder_point = expected_demand_during_lead_time + SS
-        rop_values.append(reorder_point)
+        lead_time = lead_time_list[time]
+        reorder_point = rop_list[time]
+        expected_demand = expected_demand_list[time]
 
         # 입고량 업데이트
         for index,order in pending_orders.iterrows():
@@ -678,16 +665,16 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
 
         # 재고량 업데이트
         current_stock += (minus_stock + plus_stock)
-        stock_levels.append([current_stock, date]) 
+        stock_levels.append([current_stock, date])
+        time += 1
 
         if current_stock <= reorder_point:
             if date < arrival_date:
-                if current_stock - lead_time * lambda_value * abs(np.random.normal(order_mu, order_std)) < SS:
+                if current_stock - expected_demand < SS:
                     order_value = EOQ 
                     arrival_date = date + pd.Timedelta(days=lead_time)
                     new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
                     pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
-                    lead_time_dates.append(arrival_date-date)
                     orders_input = [date, order_value, arrival_date]
                     orders_df.loc[len(orders_df)] = orders_input
                 else:
@@ -697,7 +684,6 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
                 arrival_date = date + pd.Timedelta(days=lead_time)
                 new_order_df = pd.DataFrame({'quantity': order_value, 'arrival_date': arrival_date}, index=[0])
                 pending_orders = pd.concat([pending_orders, new_order_df], ignore_index=True)
-                lead_time_dates.append(arrival_date-date)
                 orders_input = [date, order_value, arrival_date]
                 orders_df.loc[len(orders_df)] = orders_input
 
@@ -718,8 +704,8 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
             else:
                 tau_counter = 1
 
-            backlog_gap = max(0, total_cost_df['Stock'].iloc[idx-1])
-            backlog_cost = backlog_gap * beta * np.exp(lambda_param * tau_counter)
+            backlog_gap = max(0, abs(total_cost_df['Stock'].iloc[idx-1]))
+            backlog_cost = backlog_gap * meta_dict[target]['이동평균가'] * beta * np.exp(lambda_param * tau_counter)
 
             total_cost_df.at[idx, 'tau'] = tau_counter
             total_cost_df.at[idx, 'backlog_cost'] = backlog_cost
@@ -734,7 +720,7 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
 
     # 총 비용 계산
     total_cost_value = total_cost_df[['backlog_cost', 'inventory_cost', 'order_cost']].abs().sum().sum()
-    return stock_levels_df, pending_orders, orders_df, rop_values, dates, total_cost_value
+    return stock_levels_df, pending_orders, orders_df, rop_list, dates, total_cost_value
 
 def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_levels_df_result, orders_df_result, target, initial_stock):
     arrival_dates = orders_df_result['Arrival_date']

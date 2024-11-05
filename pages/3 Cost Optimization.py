@@ -127,34 +127,38 @@ else:
 
     if st.checkbox('GA 파라미터 세팅'):
         st.markdown("##### EOQ와 SS 범위 설정")
-        col1, col2 = st.columns(2)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.session_state["EOQ_LOW"] = st.slider("EOQ_LOW", min_value=0, max_value=100, value=10, step=1)
-            st.session_state["EOQ_HIGH"] = st.slider("EOQ_HIGH", min_value=0, max_value=200, value=50, step=1)
+            st.session_state["EOQ_LOW"] = st.number_input("EOQ_LOW", min_value=0, value=10, step=1)
         with col2:
-            st.session_state["SS_LOW"] = st.slider("Safety Stock_LOW", min_value=0, max_value=100, value=10, step=1)
-            st.session_state["SS_HIGH"] = st.slider("Safety Stock_HIGH", min_value=0, max_value=100, value=50, step=1)
+            st.session_state["EOQ_HIGH"] = st.number_input("EOQ_HIGH", min_value=0, value=100, step=1)
+        with col3:
+            st.session_state["SS_LOW"] = st.number_input("Safety Stock_LOW", min_value=0, value=10, step=1)
+        with col4:
+            st.session_state["SS_HIGH"] = st.number_input("Safety Stock_HIGH", min_value=0, value=50, step=1)
 
         st.markdown("##### 비용 파라미터 설정")
-        col3, col4, col5, col6, col7 = st.columns(5)
-        with col3:
-            st.session_state["alpha"] = st.number_input("alpha", min_value=0.0, max_value=1.0, value=0.1, step=0.01)
-        with col4:
-            st.session_state["beta"] = st.number_input("beta", min_value=0, max_value=100000, value=50000, step=1000)
+        col5, col6, col7, col8, col9 = st.columns(5)
         with col5:
-            st.session_state["gamma"] = st.number_input("gamma", min_value=0.0, max_value=1.0, value=0.35, step=0.01)
+            st.session_state["alpha"] = st.number_input("alpha", min_value=0.0, value=0.06, step=0.01)
         with col6:
-            st.session_state["delta"] = st.number_input("delta", min_value=0, max_value=1000000, value=700000, step=10000)
+            st.session_state["beta"] = st.number_input("beta", min_value=0.0, value=30.0, step=0.1, format="%.1f")
         with col7:
-            st.session_state["lambda_param"] = st.number_input("lambda", min_value=0, max_value=10, value=3, step=1)
+            st.session_state["gamma"] = st.number_input("gamma", min_value=0.0, value=0.55, step=0.01)
+        with col8:
+            st.session_state["delta"] = st.number_input("delta", min_value=0, value=100000, step=1000)
+        with col9:
+            st.session_state["lambda_param"] = st.number_input("lambda", min_value=0.0, value=2.0, step=0.1, format="%.1f")
 
         st.markdown("##### Genetic Algorithm 파라미터 설정")
-        col8, col9 = st.columns(2)
-        with col8:
+        col10, col11, col12, col13 = st.columns(4)
+        with col10:
             st.session_state["population_size"] = st.number_input("초기 개체 수 (population size)", min_value=1, max_value=100, value=10, step=1)
+        with col11:
             st.session_state["NGEN"] = st.number_input("세대 수 (NGEN)", min_value=1, max_value=1000, value=50, step=1)
-        with col9:
+        with col12:
             st.session_state["CXPB"] = st.slider("교차 확률 (CXPB)", min_value=0.0, max_value=1.0, value=0.8, step=0.1)
+        with col13:
             st.session_state["MUTPB"] = st.slider("변이 확률 (MUTPB)", min_value=0.0, max_value=1.0, value=0.2, step=0.1)
         
         if 'meta_dict' in st.session_state:
@@ -200,7 +204,7 @@ else:
                 st.session_state['arrival_dates'] = []
                 st.session_state['pending_orders'] = pd.DataFrame() 
 
-            st.session_state["ga_result"], st.session_state['minus_value'] = run_genetic_algorithm(
+            st.session_state["ga_result"], st.session_state['minus_value'], st.session_state['rop_list'], st.session_state['lead_time_list'], st.session_state['expected_demand_list'] = run_genetic_algorithm(
                 data_dict=st.session_state['data_dict'],
                 meta_dict=st.session_state['meta_dict'],
                 target=st.session_state['target'],
@@ -229,7 +233,6 @@ else:
                 ngen=st.session_state['NGEN'],
                 cxpb=st.session_state['CXPB'],
                 mutpb=st.session_state['MUTPB'],
-                elitism_percent=st.session_state.get('elitism_percent', 0.02)
             )
             st.session_state["optimization_complete"] = True
             status_text.markdown("<h3 style='color: green;'>최적화 완료</h3>", unsafe_allow_html=True)
@@ -252,7 +255,6 @@ else:
             """, unsafe_allow_html=True)
 
         if st.checkbox("그래프 보기") and st.session_state.get("optimization_complete", False):
-            st.session_state['type'] = "optimal"
             stock_levels_df_result, pending_orders_result, orders_df_result, rop_values_result, dates, st.session_state['total_cost_value'] = total_cost_result(
                 st.session_state["selected_eoq"], 
                 st.session_state["selected_ss"], 
@@ -264,9 +266,6 @@ else:
                 st.session_state['end_date'], 
                 st.session_state['run_start_date'], 
                 st.session_state['run_end_date'], 
-                st.session_state['type'], 
-                st.session_state['lead_time_mu'], 
-                st.session_state['lead_time_std'], 
                 st.session_state['order_dates'], 
                 st.session_state['order_values'], 
                 st.session_state['arrival_dates'], 
@@ -276,7 +275,10 @@ else:
                 st.session_state['gamma'], 
                 st.session_state['delta'], 
                 st.session_state['lambda_param'],
-                st.session_state['minus_value']
+                st.session_state['minus_value'],
+                st.session_state['rop_list'],
+                st.session_state['lead_time_list'],
+                st.session_state['expected_demand_list']
             )
             st.session_state['stock_levels_df_result'] = stock_levels_df_result
             st.session_state['pending_orders_result'] = pending_orders_result
