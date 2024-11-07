@@ -61,6 +61,7 @@ with col1:
     st.markdown('재고가 음수로 내려가는 상황이 지속된 경우 지수적으로 비용이 증가')
     
 with col2:
+<<<<<<< Updated upstream
     st.markdown('주문비용')
     st.markdown('주문이 발생할 때 발생하는 고정 비용과 주문량에 비례해서 선형적으로 증가하는 변동 비용')
     st.markdown('')
@@ -137,3 +138,15 @@ with st.expander('### 재고 최소화를 위한 목적함수'):
     st.markdown("- $ EOQ $: Economic order quantity")
     st.markdown("- $ SS $: Safety stock level")
     st.markdown("- $ P_t $: Binary variable indicating demand occurrence at time $t$")
+=======
+    st.markdown('3')
+
+st.markdown('MRO 재고관리를 위한 시뮬레이터')
+
+with st.expander('시뮬레이터 사용 방법'):
+    st.markdown('### 다양한 입력 파라미터를 활용한 미래 재고 시뮬레이터입니다.')
+with st.expander('최적화 수식에 대한 입력 파라미터 설명 :'):
+    st.markdown('### alpha, beta, gamma, lambda')
+
+    
+>>>>>>> Stashed changes
