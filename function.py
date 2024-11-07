@@ -486,12 +486,12 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
         current_stock = total_cost_df['Stock'].iloc[idx]
 
         if current_stock < 0:
-            if total_cost_df['Stock'].iloc[idx-1] < 0:
+            if total_cost_df['Stock'].iloc[idx] < 0:
                 tau_counter += 1
             else:
                 tau_counter = 1
 
-            backlog_gap = max(0, abs(total_cost_df['Stock'].iloc[idx-1]))
+            backlog_gap = max(0, abs(total_cost_df['Stock'].iloc[idx]))
             backlog_cost = backlog_gap * meta_dict[target]['이동평균가'] * beta * np.exp(lambda_param * tau_counter)
 
             total_cost_df.at[idx, 'tau'] = tau_counter
@@ -699,12 +699,12 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
         current_stock = total_cost_df['Stock'].iloc[idx]
 
         if current_stock < 0:
-            if total_cost_df['Stock'].iloc[idx-1] < 0:
+            if total_cost_df['Stock'].iloc[idx] < 0:
                 tau_counter += 1
             else:
                 tau_counter = 1
 
-            backlog_gap = max(0, abs(total_cost_df['Stock'].iloc[idx-1]))
+            backlog_gap = max(0, abs(total_cost_df['Stock'].iloc[idx]))
             backlog_cost = backlog_gap * meta_dict[target]['이동평균가'] * beta * np.exp(lambda_param * tau_counter)
 
             total_cost_df.at[idx, 'tau'] = tau_counter
@@ -742,7 +742,7 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         mode='lines+markers',
         line=dict(color='green', dash='dash', width=2),
         name='Reorder Point',
-        marker=dict(size=8, symbol='circle')
+        marker=dict(size=7, symbol='circle')
     ))
     # Current Stock 라인
     fig.add_trace(go.Scatter(
@@ -751,7 +751,7 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         mode='lines+markers',
         line=dict(color='blue'),
         name='Current Stock',
-        marker=dict(size=8, symbol='circle')
+        marker=dict(size=7, symbol='circle')
     ))
 
     for date in arrival_dates:
@@ -768,49 +768,27 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
             line=dict(color="grey", width=1, dash="dash"),
         )
 
-    for date in arrival_dates:
-        if date == arrival_dates[0]:
-            fig.add_trace(go.Scatter(
-                x=[date],
-                y=[0],
-                mode="lines+markers",
-                marker=dict(size=8, color="orange"),
-                name="Arrival Date",
-                hovertemplate="<span style='color:orange'>Arrival Date</span> (%{x|%Y-%m-%d})<extra></extra>",
-                showlegend=True
-            ))
-        else:
-            fig.add_trace(go.Scatter(
-                x=[date],
-                y=[0],
-                mode="lines+markers",
-                marker=dict(size=8, color="orange"),
-                name="Arrival Date",
-                hovertemplate="<span style='color:orange'>Arrival Date</span> (%{x|%Y-%m-%d})<extra></extra>",
-                showlegend=False
-            ))
+    for i, date in enumerate(arrival_dates):
+        fig.add_trace(go.Scatter(
+            x=[date],
+            y=[0],
+            mode="lines+markers",
+            marker=dict(size=7, color="orange"),
+            name="Arrival Date",
+            hovertemplate="<span style='color:orange'>Arrival Date</span> (%{x|%Y-%m-%d})<extra></extra>",
+            showlegend=(i == 0)
+        ))
 
-    for date in order_dates:
-        if date == order_dates[0]:
-            fig.add_trace(go.Scatter(
-                x=[date],
-                y=[-5],
-                mode="lines+markers",
-                marker=dict(size=8, color="grey"),
-                name="Order Date",
-                hovertemplate="<span style='color:grey'>Order Date</span> (%{x|%Y-%m-%d})<extra></extra>",
-                showlegend=True
-            ))
-        else:
-            fig.add_trace(go.Scatter(
-                x=[date],
-                y=[-5],
-                mode="lines+markers",
-                marker=dict(size=8, color="grey"),
-                name="Order Date",
-                hovertemplate="<span style='color:grey'>Order Date</span> (%{x|%Y-%m-%d})<extra></extra>",
-                showlegend=False
-            ))      
+    for i, date in enumerate(order_dates):
+        fig.add_trace(go.Scatter(
+            x=[date],
+            y=[-5],
+            mode="lines+markers",
+            marker=dict(size=7, color="grey"),
+            name="Order Date",
+            hovertemplate="<span style='color:grey'>Order Date</span> (%{x|%Y-%m-%d})<extra></extra>",
+            showlegend=(i == 0)
+        ))    
 
     max_y_value = max(safety_stock, max(rop_values_result), stock_levels_df_result['Stock'].max()) * 1.2
     fig.update_layout(
@@ -822,7 +800,7 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         margin=dict(l=0, r=0, t=150, b=0),  # 여백 설정으로 제목이 짤리지 않도록
         xaxis_title='날짜', yaxis_title='재고량', font=dict(size=36),
         xaxis=dict(titlefont=dict(size=24), tickformat='%Y-%m-%d', tickmode='linear',
-            dtick=604800000.0, tickfont=dict(size=24), range = [min(dates)-pd.Timedelta(days=0.5), max(dates)+pd.Timedelta(days=0.5)]
+            dtick=604800000.0, tickfont=dict(size=24), tickangle=90, range = [min(dates)-pd.Timedelta(days=0.5), max(dates)+pd.Timedelta(days=0.5)]
         ),
         yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24), range=[-10, max_y_value]),
         legend=dict(orientation="h", yanchor="bottom", y=1, xanchor="right", x=1, font=dict(size=26)),
