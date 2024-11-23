@@ -333,7 +333,6 @@ selenium==4.7.2
 semver==3.0.1
 Send2Trash==1.8.0
 service-identity==18.1.0
-setuptools
 sip==4.19.13
 six==1.16.0
 sklearn==0.0.post1
