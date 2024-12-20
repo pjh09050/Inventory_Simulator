@@ -5,15 +5,7 @@ from datetime import datetime
 from function import *
 import time
 import matplotlib.pyplot as plt
-from matplotlib import rc
-import platform
 import os
-if platform.system() == 'Windows':
-    rc('font', family='Malgun Gothic')
-elif platform.system() == 'Darwin':
-    rc('font', family='AppleGothic')
-else: # linux
-    rc('font', family='NanumGothic')
 plt.rcParams['axes.unicode_minus'] = False
 import warnings
 warnings.filterwarnings('ignore')
@@ -47,65 +39,68 @@ st.subheader('Parameter settings')
 set_param = st.checkbox('Set & Save parameters')
 
 if set_param:
-    data_path = st.text_input("Data Path", './data/project_mb51_df.pickle')
-    meta_path = st.text_input("Meta Path", './data/project_zwms03s_df.pickle')
-    target = st.text_input("Target", '61-200161000000')
+    data_path = st.file_uploader("Choose Data File", type=["pickle", "csv", "xlsx", "json"])
+    meta_path = st.file_uploader("Choose Meta_Data File", type=["pickle", "csv", "xlsx", "json"])
+    if data_path is not None and meta_path is not None:
+        st.session_state['data_dict'] = eda(data_path)
+        st.session_state['material_numbers'] = list(st.session_state['data_dict'].keys())
+        target = st.selectbox("Target:", st.session_state['material_numbers'])
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            start_date = st.date_input("Start Date", datetime(2022, 12, 30))
+            initial_stock = st.number_input("Initial Stock", value=34.0, step=0.01, format="%.2f")
+        with col2:
+            end_date = st.date_input("End Date", datetime(2023, 12, 30))
+            safety_stock = st.number_input("Safety Stock", value=17.096, step=0.01, format="%.2f")
+        with col3:
+            run_start_date = st.date_input("Run Start Date", datetime(2024, 1, 1))
+            maintenance_mu = st.number_input("Maintenance Mean (mu)", value=70.0, step=0.01, format="%.2f")
+        with col4:
+            run_end_date = st.date_input("Run End Date", datetime(2024, 1, 30))
+            maintenance_std = st.number_input("Maintenance Std Dev (std)", value=13.0, step=0.01, format="%.2f")
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        start_date = st.date_input("Start Date", datetime(2022, 12, 30))
-        initial_stock = st.number_input("Initial Stock", value=34.0, step=0.01, format="%.2f")
-    with col2:
-        end_date = st.date_input("End Date", datetime(2023, 12, 30))
-        safety_stock = st.number_input("Safety Stock", value=17.096, step=0.01, format="%.2f")
-    with col3:
-        run_start_date = st.date_input("Run Start Date", datetime(2024, 1, 1))
-        maintenance_mu = st.number_input("Maintenance Mean (mu)", value=70.0, step=0.01, format="%.2f")
-        # reorder_point = st.number_input("Reorder Point", value=32.572, step=0.01, format="%.2f")
-    with col4:
-        run_end_date = st.date_input("Run End Date", datetime(2024, 1, 30))
-        maintenance_std = st.number_input("Maintenance Std Dev (std)", value=13.0, step=0.01, format="%.2f")
+        save_config = {
+            'data_path': data_path,
+            'meta_path': meta_path,
+            'target': target,
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'run_start_date': run_start_date.strftime('%Y-%m-%d'),
+            'run_end_date': run_end_date.strftime('%Y-%m-%d'),
+            'safety_stock': safety_stock,
+            'initial_stock': initial_stock,
+            'maintenance_mu': maintenance_mu,
+            'maintenance_std': maintenance_std
+        }
 
-    save_config = {
-        'data_path': data_path,
-        'meta_path': os.path.abspath(meta_path),
-        'target': target,
-        'start_date': start_date.strftime('%Y-%m-%d'),
-        'end_date': end_date.strftime('%Y-%m-%d'),
-        'run_start_date': run_start_date.strftime('%Y-%m-%d'),
-        'run_end_date': run_end_date.strftime('%Y-%m-%d'),
-        'safety_stock': safety_stock,
-        'initial_stock': initial_stock,
-        'maintenance_mu': maintenance_mu,
-        'maintenance_std': maintenance_std
-    }
+        save_filename = st.text_input("Save File Name", "param_set.yaml")
+        if st.button('Save parameters'):
+            try:
+                if not save_filename.endswith('.yaml'):
+                    save_filename += '.yaml'
 
-    save_filename = st.text_input("Save File Name", "param_set.yaml")
-    if st.button('Save parameters'):
-        try:
-            if not save_filename.endswith('.yaml'):
-                save_filename += '.yaml'
-
-            save_config.update({
-                'data_path': data_path,
-                'meta_path': meta_path,
-                'target': target,
-                'start_date': start_date.strftime('%Y-%m-%d'),
-                'end_date': end_date.strftime('%Y-%m-%d'),
-                'run_start_date': run_start_date.strftime('%Y-%m-%d'),
-                'run_end_date': run_end_date.strftime('%Y-%m-%d'),
-                'safety_stock': safety_stock,
-                'initial_stock': initial_stock,
-                'maintenance_mu': maintenance_mu,
-                'maintenance_std': maintenance_std
-            })
-            st.session_state['meta_dict'] = load_meta_info(meta_path)
-            save_config.update(st.session_state['meta_dict'][target])
-            with open(save_filename, 'w', encoding='utf-8') as file:
-                yaml.dump(save_config, file, default_flow_style=False, sort_keys=False, allow_unicode=True)
-            st.success(f"Configuration saved to '{save_filename}'")
-        except Exception as e:
-            st.error(f"Error saving configuration: {e}")
+                save_config.update({
+                    'data_path': data_path,
+                    'meta_path': meta_path,
+                    'target': target,
+                    'start_date': start_date.strftime('%Y-%m-%d'),
+                    'end_date': end_date.strftime('%Y-%m-%d'),
+                    'run_start_date': run_start_date.strftime('%Y-%m-%d'),
+                    'run_end_date': run_end_date.strftime('%Y-%m-%d'),
+                    'safety_stock': safety_stock,
+                    'initial_stock': initial_stock,
+                    'maintenance_mu': maintenance_mu,
+                    'maintenance_std': maintenance_std
+                })
+                st.session_state['meta_dict'] = load_meta_info(meta_path)
+                save_config.update(st.session_state['meta_dict'][target])
+                with open(save_filename, 'w', encoding='utf-8') as file:
+                    yaml.dump(save_config, file, default_flow_style=False, sort_keys=False, allow_unicode=True)
+                st.success(f"Configuration saved to '{save_filename}'")
+            except Exception as e:
+                st.error(f"Error saving configuration: {e}")
+    else:
+        st.markdown('Data(mb51)와 Meta Data(zwms03s) 파일을 업로드하세요')
 
 ################################################################################################
 st.subheader('Run simulation')
@@ -157,7 +152,7 @@ if st.session_state['parameters_loaded']:
             st.session_state['lead_time_mu'] = config['납기(일)-Average Lead Time (Days) /Max/Min.1']
             st.session_state['lead_time_std'] = config['Lead Time Standard Deviation (Days)']
             st.session_state['maintenance_mu'] = config['maintenance_mu']
-            st.session_state['maintenance_std'] = config['maintenance_std']
+            st.session_state['maintenance_std'] = config['maintenance_std'] 
             st.session_state["item_name"] = config['품명']
 
             # 시뮬레이션이 시작된 후에만 라디오 버튼이 표시되도록 조건 추가
@@ -178,7 +173,7 @@ if st.session_state['parameters_loaded']:
                     warmup_stock_levels_df, warmup_pending_orders_df, warmup_order_dates, warmup_arrival_dates, warmup_rop_values, warmup_dates = warmup_simulator(
                         EOQ, SS, st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'],
                         st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['start_date'], st.session_state['end_date'], 
-                        st.session_state['run_start_date'], simulation_type
+                        st.session_state['run_start_date'], simulation_type, st.session_state['maintenance_mu'], st.session_state['maintenance_std']
                     )
                     if not warmup_pending_orders_df.empty and 'arrival_date' in warmup_pending_orders_df.columns:
                         st.session_state['order_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
@@ -191,14 +186,14 @@ if st.session_state['parameters_loaded']:
                         st.session_state['arrival_dates'] = []
                         st.session_state['pending_orders'] = pd.DataFrame() 
 
-                    st.session_state['stock_levels_df_result'], st.session_state['pending_orders_result'], st.session_state['orders_df_result'], st.session_state['rop_values_result'], st.session_state['dates'], st.session_state['simulation_info'], st.session_state['minus_value'] = run_simulation(
+                    st.session_state['stock_levels_df_result'], st.session_state['pending_orders_result'], st.session_state['orders_df_result'], st.session_state['rop_values_result'], st.session_state['dates'], st.session_state['simulation_info'], st.session_state['minus_value'], st.session_state['maintenance_date'] = run_simulation(
                         EOQ, SS, st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'], st.session_state['start_date'], st.session_state['end_date'], 
                         st.session_state['run_start_date'], st.session_state['run_end_date'], st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['order_dates'], 
-                        st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
+                        st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type, st.session_state['maintenance_mu'], st.session_state['maintenance_std']
                     )
                     time.sleep(0.5)
                     fig = plot_inventory_simulation(st.session_state['dates'], SS, st.session_state['rop_values_result'], st.session_state['stock_levels_df_result'], 
-                                    st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"])
+                                    st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"], st.session_state['maintenance_date'])
                     st.session_state['fig'] = fig
                     st.plotly_chart(st.session_state['fig'])
                     status_text.write("EOQ 시뮬레이션 실행 완료")
@@ -213,7 +208,7 @@ if st.session_state['parameters_loaded']:
                         st.success("Simulation reset! Please reload parameters to start again!")
                         time.sleep(1.5)
                         st.rerun()
-                    # if st.checkbox('Simulation Information'):
+
                     minus_df_display = st.session_state['minus_value'].copy().reset_index()
                     minus_df_display['날짜'] = minus_df_display['날짜'].dt.strftime('%Y-%m-%d')
                     with st.expander("출고시점 및 출고량 보기", expanded=False):
@@ -230,6 +225,25 @@ if st.session_state['parameters_loaded']:
                                 f"<div style='flex: 5; padding: 1px;'>{row['수량']}</div>"
                                 f"</div>", unsafe_allow_html=True
                         )
+                    orders_df_display = st.session_state['orders_df_result'].copy()
+                    orders_df_display['Arrival_date'] = orders_df_display['Arrival_date'].dt.strftime('%Y-%m-%d')
+                    orders_df_display['Order_Date'] = orders_df_display['Order_Date'].dt.strftime('%Y-%m-%d')
+                    with st.expander("입고시점 및 입고량 보기", expanded=False):
+                        st.markdown(
+                            f"<div style='display: flex; font-size: 20px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 1px; margin-bottom: 5px;'>"
+                            f"<div style='flex: 1; padding: 1px;'>주문 날짜</div>"
+                            f"<div style='flex: 1; padding: 1px;'>입고 날짜</div>"
+                            f"<div style='flex: 1; padding: 1px;'>입고량</div>"
+                            f"</div>", unsafe_allow_html=True
+                        )
+                        for idx, row in orders_df_display.iterrows():
+                            st.markdown(
+                                f"<div style='display: flex; font-size: 18px; border-bottom: 0.5px solid #e0e0e0; padding: 5px;'>"
+                                f"<div style='flex: 1; padding: 1px;'>{row['Order_Date']}</div>"
+                                f"<div style='flex: 1; padding: 1px;'>{row['Arrival_date']}</div>"
+                                f"<div style='flex: 1; padding: 1px;'>{row['Order_Value']}</div>"
+                                f"</div>", unsafe_allow_html=True
+                            )
                     st.markdown(f"{st.session_state['simulation_info']}")
 
             elif simulation_type == '분포 시뮬레이션':
@@ -239,7 +253,7 @@ if st.session_state['parameters_loaded']:
                 warmup_stock_levels_df, warmup_pending_orders_df, warmup_order_dates, warmup_arrival_dates, warmup_rop_values, warmup_dates = warmup_simulator(
                     None, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'],
                     st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['start_date'], st.session_state['end_date'], 
-                    st.session_state['run_start_date'], simulation_type
+                    st.session_state['run_start_date'], simulation_type, st.session_state['maintenance_mu'], st.session_state['maintenance_std']
                 )
                 if not warmup_pending_orders_df.empty and 'arrival_date' in warmup_pending_orders_df.columns:
                     st.session_state['order_dates'] = warmup_pending_orders_df.groupby(['arrival_date']).sum().reset_index()['arrival_date'].tolist()
@@ -252,17 +266,17 @@ if st.session_state['parameters_loaded']:
                     st.session_state['arrival_dates'] = []
                     st.session_state['pending_orders'] = pd.DataFrame()
 
-                st.session_state['stock_levels_df_result'], st.session_state['pending_orders_result'], st.session_state['orders_df_result'], st.session_state['rop_values_result'], st.session_state['dates'], st.session_state['simulation_info'], st.session_state['minus_value'] = run_simulation(
+                st.session_state['stock_levels_df_result'], st.session_state['pending_orders_result'], st.session_state['orders_df_result'], st.session_state['rop_values_result'], st.session_state['dates'], st.session_state['simulation_info'], st.session_state['minus_value'], st.session_state['maintenance_date'] = run_simulation(
                     None, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'], st.session_state['start_date'], st.session_state['end_date'], 
                     st.session_state['run_start_date'], st.session_state['run_end_date'], st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['order_dates'], 
-                    st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type
+                    st.session_state['order_values'], st.session_state['arrival_dates'], st.session_state['pending_orders'], simulation_type, st.session_state['maintenance_mu'], st.session_state['maintenance_std']
                 )
 
                 if st.checkbox('분포 시뮬레이션 시작'):
                     status_text.write("분포 시뮬레이션 실행 중...")
                     time.sleep(0.5)
                     fig = plot_inventory_simulation(st.session_state['dates'], st.session_state['safety_stock'], st.session_state['rop_values_result'], st.session_state['stock_levels_df_result'], 
-                                        st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"])
+                                        st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"], st.session_state['maintenance_date'])
                     st.session_state['fig'] = fig
                     st.plotly_chart(st.session_state['fig'])
                     status_text.write("분포 시뮬레이션 실행 완료")
@@ -277,7 +291,6 @@ if st.session_state['parameters_loaded']:
                         time.sleep(1.5)
                         st.rerun()
 
-                    # if st.checkbox('Simulation Information'):
                     minus_df_display = st.session_state['minus_value'].copy().reset_index()
                     minus_df_display['날짜'] = minus_df_display['날짜'].dt.strftime('%Y-%m-%d')
                     with st.expander("출고시점 및 출고량 보기", expanded=False):
@@ -293,7 +306,26 @@ if st.session_state['parameters_loaded']:
                                 f"<div style='flex: 1; padding: 1px;'>{row['날짜']}</div>"
                                 f"<div style='flex: 5; padding: 1px;'>{row['수량']}</div>"
                                 f"</div>", unsafe_allow_html=True
+                            )
+                    orders_df_display = st.session_state['orders_df_result'].copy()
+                    orders_df_display['Arrival_date'] = orders_df_display['Arrival_date'].dt.strftime('%Y-%m-%d')
+                    orders_df_display['Order_Date'] = orders_df_display['Order_Date'].dt.strftime('%Y-%m-%d')
+                    with st.expander("입고시점 및 입고량 보기", expanded=False):
+                        st.markdown(
+                            f"<div style='display: flex; font-size: 20px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 1px; margin-bottom: 5px;'>"
+                            f"<div style='flex: 1; padding: 1px;'>주문 날짜</div>"
+                            f"<div style='flex: 1; padding: 1px;'>입고 날짜</div>"
+                            f"<div style='flex: 1; padding: 1px;'>입고량</div>"
+                            f"</div>", unsafe_allow_html=True
                         )
+                        for idx, row in orders_df_display.iterrows():
+                            st.markdown(
+                                f"<div style='display: flex; font-size: 18px; border-bottom: 0.5px solid #e0e0e0; padding: 5px;'>"
+                                f"<div style='flex: 1; padding: 1px;'>{row['Order_Date']}</div>"
+                                f"<div style='flex: 1; padding: 1px;'>{row['Arrival_date']}</div>"
+                                f"<div style='flex: 1; padding: 1px;'>{row['Order_Value']}</div>"
+                                f"</div>", unsafe_allow_html=True
+                            )
                     st.markdown(f"{st.session_state['simulation_info']}")
                 else:
                     st.error(f"시뮬레이션을 실행시켜주세요")

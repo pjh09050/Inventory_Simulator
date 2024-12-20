@@ -4,15 +4,7 @@ import pandas as pd
 from function import *
 import time
 import matplotlib.pyplot as plt
-from matplotlib import rc
-import platform
 import os
-if platform.system() == 'Windows':
-    rc('font', family='Malgun Gothic')
-elif platform.system() == 'Darwin':
-    rc('font', family='AppleGothic')
-else: # linux
-    rc('font', family='NanumGothic')
 plt.rcParams['axes.unicode_minus'] = False
 import warnings
 warnings.filterwarnings('ignore')
@@ -125,6 +117,18 @@ else:
                 - {st.session_state['maintenance_std']}
             """)
 
+    if 'meta_dict' in st.session_state:
+        meta_dict = st.session_state['meta_dict']
+    else:
+        meta_path = st.file_uploader("Choose Meta_Data File", type=["pickle", "csv", "xlsx", "json"])
+        if meta_path:
+            st.session_state['meta_dict'] = load_meta_info(meta_path)
+            meta_dict = st.session_state['meta_dict']
+            st.success("Meta dict loaded successfully!")
+        else:
+            st.error("Meta Data(zws03s) 파일을 업로드하세요")
+            
+#############################################################################################################
     if st.checkbox('GA 파라미터 세팅'):
         st.markdown("##### EOQ와 SS 범위 설정")
         col1, col2, col3, col4 = st.columns(4)
@@ -160,18 +164,6 @@ else:
             st.session_state["CXPB"] = st.slider("교차 확률 (CXPB)", min_value=0.0, max_value=1.0, value=0.8, step=0.1)
         with col13:
             st.session_state["MUTPB"] = st.slider("변이 확률 (MUTPB)", min_value=0.0, max_value=1.0, value=0.2, step=0.1)
-        
-        if 'meta_dict' in st.session_state:
-            meta_dict = st.session_state['meta_dict']
-        else:
-
-            st.error("Meta dict 변수가 선언되어있지 않습니다. 경로를 다시 정의해주세요")
-            meta_path = st.text_input("Meta Path", './data/project_zwms03s_df.pickle')
-            
-            if st.button("Load Meta Dict"):
-                st.session_state['meta_dict'] = load_meta_info(meta_path)
-                meta_dict = st.session_state['meta_dict']
-                st.success("Meta dict loaded successfully!")
 
 #############################################################################################################
     if 'optimize_checkbox' not in st.session_state:
@@ -190,7 +182,7 @@ else:
             warmup_stock_levels_df, warmup_pending_orders_df, warmup_order_dates, warmup_arrival_dates, warmup_rop_values, warmup_dates = warmup_simulator(
                 None, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'],
                 st.session_state['lead_time_mu'], st.session_state['lead_time_std'], st.session_state['start_date'], st.session_state['end_date'], 
-                st.session_state['run_start_date'], type="optimal"
+                st.session_state['run_start_date'], st.session_state['type'], st.session_state['maintenance_mu'], st.session_state['maintenance_std']
             )
 
             if not warmup_pending_orders_df.empty and 'arrival_date' in warmup_pending_orders_df.columns:
@@ -204,7 +196,7 @@ else:
                 st.session_state['arrival_dates'] = []
                 st.session_state['pending_orders'] = pd.DataFrame() 
 
-            st.session_state["ga_result"], st.session_state['minus_value'], st.session_state['rop_list'], st.session_state['lead_time_list'], st.session_state['expected_demand_list'] = run_genetic_algorithm(
+            st.session_state["ga_result"], st.session_state['minus_value'], st.session_state['rop_list'], st.session_state['lead_time_list'], st.session_state['expected_demand_list'], st.session_state['maintenance_date'] = run_genetic_algorithm(
                 data_dict=st.session_state['data_dict'],
                 meta_dict=st.session_state['meta_dict'],
                 target=st.session_state['target'],
@@ -216,6 +208,8 @@ else:
                 type=st.session_state['type'],
                 lead_time_mu=st.session_state['lead_time_mu'],
                 lead_time_std=st.session_state['lead_time_std'],
+                maintenance_mu = st.session_state['maintenance_mu'], 
+                maintenance_std = st.session_state['maintenance_std'],
                 order_dates=st.session_state['order_dates'],
                 order_values=st.session_state['order_values'],
                 arrival_dates=st.session_state['arrival_dates'],
@@ -239,7 +233,7 @@ else:
 
     if st.session_state.get('optimization_complete', False) and optimize_checkbox:
         if 'ga_result' in st.session_state:
-            st.write("다음은 모든 EOQ와 Safety Stock 조합입니다:")
+            st.write("다음은 EOQ와 Safety Stock 조합입니다:")
             options = [f"EOQ = {eoq}, Safety Stock = {ss}" for eoq, ss in st.session_state['ga_result']]
             selected_option = st.selectbox("최적의 조합을 선택하세요:", options)
 
@@ -286,7 +280,6 @@ else:
             st.session_state['rop_values_result'] = rop_values_result
             st.session_state['dates'] = dates
             time.sleep(0.5)
-            # st.markdown(f"<h4 style='color: black;'>자재번호: {st.session_state['target']}</h3>", unsafe_allow_html=True)
             st.markdown(f"<h4 style='color: black;'>자재명: {st.session_state['item_name']}</h3>", unsafe_allow_html=True)
             st.markdown(
                 f"""
@@ -300,24 +293,43 @@ else:
                 unsafe_allow_html=True
             )
             fig = plot_inventory_simulation(st.session_state['dates'], st.session_state['selected_ss'], st.session_state['rop_values_result'], st.session_state['stock_levels_df_result'], 
-                                st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"])
+                                st.session_state['orders_df_result'], st.session_state["target"], st.session_state["initial_stock"], st.session_state['maintenance_date'])
             st.plotly_chart(fig)
             minus_df_display = st.session_state['minus_value'].copy().reset_index()
             minus_df_display['날짜'] = minus_df_display['날짜'].dt.strftime('%Y-%m-%d')
-            with st.expander("출고 정보 보기", expanded=False):
+            with st.expander("출고시점 및 출고량 보기", expanded=False):
                 st.markdown(
                     f"<div style='display: flex; font-size: 20px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 1px; margin-bottom: 5px;'>"
                     f"<div style='flex: 1; padding: 1px;'>날짜</div>"
-                    f"<div style='flex: 10; padding: 1px;'>수량</div>"
+                    f"<div style='flex: 5; padding: 1px;'>수량</div>"
                     f"</div>", unsafe_allow_html=True
                 )
                 for idx, row in minus_df_display.iterrows():
                     st.markdown(
                         f"<div style='display: flex; font-size: 18px; border-bottom: 0.5px solid #e0e0e0; padding: 5px;'>"
                         f"<div style='flex: 1; padding: 1px;'>{row['날짜']}</div>"
-                        f"<div style='flex: 10; padding: 1px;'>{row['수량']}</div>"
+                        f"<div style='flex: 5; padding: 1px;'>{row['수량']}</div>"
                         f"</div>", unsafe_allow_html=True
                 )
+            orders_df_display = st.session_state['orders_df_result'].copy()
+            orders_df_display['Arrival_date'] = orders_df_display['Arrival_date'].dt.strftime('%Y-%m-%d')
+            orders_df_display['Order_Date'] = orders_df_display['Order_Date'].dt.strftime('%Y-%m-%d')
+            with st.expander("입고시점 및 입고량 보기", expanded=False):
+                st.markdown(
+                    f"<div style='display: flex; font-size: 20px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 1px; margin-bottom: 5px;'>"
+                    f"<div style='flex: 1; padding: 1px;'>주문 날짜</div>"
+                    f"<div style='flex: 1; padding: 1px;'>입고 날짜</div>"
+                    f"<div style='flex: 1; padding: 1px;'>입고량</div>"
+                    f"</div>", unsafe_allow_html=True
+                )
+                for idx, row in orders_df_display.iterrows():
+                    st.markdown(
+                        f"<div style='display: flex; font-size: 18px; border-bottom: 0.5px solid #e0e0e0; padding: 5px;'>"
+                        f"<div style='flex: 1; padding: 1px;'>{row['Order_Date']}</div>"
+                        f"<div style='flex: 1; padding: 1px;'>{row['Arrival_date']}</div>"
+                        f"<div style='flex: 1; padding: 1px;'>{row['Order_Value']}</div>"
+                        f"</div>", unsafe_allow_html=True
+                    )
             if 'load_filename' in st.session_state:
                 new_filename = st.text_input("결과를 저장할 파일 이름:", f"{st.session_state['load_filename'].split('.')[0]}_{st.session_state['selected_eoq']}_{st.session_state['selected_ss']}.yaml")
                 if st.button("결과 저장"):

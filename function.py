@@ -197,7 +197,7 @@ def eda(df):
     
     return data_dict
 
-def warmup_simulator(EOQ, SS, data_dict, target, initial_stock, lead_time_mu, lead_time_std, start_date, end_date, run_start_time, type):
+def warmup_simulator(EOQ, SS, data_dict, target, initial_stock, lead_time_mu, lead_time_std, start_date, end_date, run_start_time, type, maintenance_mu, maintenance_std):
     warm_up_start_date = run_start_time - pd.Timedelta(days=lead_time_mu)
 
     if initial_stock < 0:
@@ -219,14 +219,18 @@ def warmup_simulator(EOQ, SS, data_dict, target, initial_stock, lead_time_mu, le
     # 1년간의 데이터를 사용하여 분포 추정 (시뮬레이션 시작 전)
     lambda_value, order_mu, order_std = moving_order_history(data_dict[target], start_date, end_date)
     store_mu, store_std = moving_store_history(data_dict[target], start_date, end_date)
-    
+
     minus = new_order(lambda_value, order_mu, order_std, warm_up_start_date, run_start_time)
     minus = minus.groupby(['날짜']).sum(numeric_only=True)
+    main = generate_maintenance_schedule(maintenance_mu, maintenance_std, warm_up_start_date, run_start_time)
+    minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
+    minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
+    minus = minus[['날짜', '수량']].set_index('날짜')
     minus = minus.sort_index()
-
+    if minus.empty:
+        return stock_levels_df, pending_orders_df, order_dates, arrival_dates, rop_values, dates
     dates = pd.date_range(start=warm_up_start_date, end=run_start_time, freq='D')
     arrival_date = pd.Timestamp(warm_up_start_date)
-
     for date in dates:
         minus_stock = 0
         plus_stock = 0
@@ -289,7 +293,8 @@ def warmup_simulator(EOQ, SS, data_dict, target, initial_stock, lead_time_mu, le
     pending_orders_df = pd.DataFrame(pending_orders)
     return stock_levels_df, pending_orders_df, order_dates, arrival_dates, rop_values, dates
 
-def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_date, run_start_date, run_end_date, lead_time_mu, lead_time_std, order_dates, order_values, arrival_dates, pending_orders, type):
+def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_date, run_start_date, run_end_date, lead_time_mu, lead_time_std, 
+                   order_dates, order_values, arrival_dates, pending_orders, type, maintenance_mu, maintenance_std):
     warm_up_start_date = run_start_date - pd.Timedelta(days=lead_time_mu)
     # 초기 재고 설정 및 시뮬레이션 준비
     current_stock = initial_stock
@@ -309,10 +314,11 @@ def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_da
     arrival_date = pd.Timestamp(run_start_date)
     minus = new_order(lambda_value, order_mu, order_std, run_start_date, run_end_date)
     minus = minus.groupby(['날짜']).sum(numeric_only=True)
-    # main = generate_maintenance_schedule(data_dict[target], maintenance_mu, maintenance_std, simulation_start_date, simulation_start_date + pd.DateOffset(months=lookback_months))
-    # minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
-    # minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
-    # minus = minus[['날짜', '수량']].set_index('날짜')
+    main = generate_maintenance_schedule(maintenance_mu, maintenance_std, run_start_date, run_end_date)
+    if main is not None and not main.empty:
+        minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
+        minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
+        minus = minus[['날짜', '수량']].set_index('날짜')
     minus = minus.sort_index()
     if type == "distribution":
         simulation_info = f"""
@@ -397,10 +403,10 @@ def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_da
 
     stock_levels_df = pd.DataFrame(stock_levels)
     stock_levels_df.columns = ['Stock', 'Date']
-    return stock_levels_df, pending_orders, orders_df, rop_values, dates, simulation_info, minus
+    return stock_levels_df, pending_orders, orders_df, rop_values, dates, simulation_info, minus, main
 
 def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, run_start_date, run_end_date, type, 
-                  lead_time_mu, lead_time_std, order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param):
+                  lead_time_mu, lead_time_std, maintenance_mu, maintenance_std, order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param):
     
     current_stock = initial_stock
     stock_levels = []
@@ -418,10 +424,11 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
     arrival_date = pd.Timestamp(run_start_date)
     minus = new_order(lambda_value, order_mu, order_std, run_start_date, run_end_date)
     minus = minus.groupby(['날짜']).sum(numeric_only=True)
-    # main = generate_maintenance_schedule(data_dict[target], maintenance_mu, maintenance_std, simulation_start_date, simulation_start_date + pd.DateOffset(months=lookback_months))
-    # minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
-    # minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
-    # minus = minus[['날짜', '수량']].set_index('날짜')
+    main = generate_maintenance_schedule(maintenance_mu, maintenance_std, run_start_date, run_end_date)
+    if main is not None and not main.empty:
+        minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
+        minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
+        minus = minus[['날짜', '수량']].set_index('날짜')
     minus = minus.sort_index()
 
     for date in dates:
@@ -507,10 +514,10 @@ def total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_da
 
     # 총 비용 계산
     total_cost_value = total_cost_df[['backlog_cost', 'inventory_cost', 'order_cost']].abs().sum().sum()
-    return stock_levels_df, pending_orders, orders_df, rop_values, dates, total_cost_value, minus, lead_time_list, expected_demand_list
+    return stock_levels_df, pending_orders, orders_df, rop_values, dates, total_cost_value, minus, lead_time_list, expected_demand_list, main
 
 def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_date, end_date, 
-                          run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
+                          run_start_date, run_end_date, type, lead_time_mu, lead_time_std, maintenance_mu, maintenance_std,
                           order_dates, order_values, arrival_dates, pending_orders,
                           EOQ_LOW=10, EOQ_HIGH=100, SS_LOW=10, SS_HIGH=50, alpha=0.1, beta=50000,
                           gamma=0.35, delta=700000, lambda_param=3, population_size=20, 
@@ -531,8 +538,8 @@ def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_dat
         EOQ_binary, SS_binary = individual[:EOQ_BITS], individual[EOQ_BITS:]
         EOQ = binary_to_int(EOQ_binary, EOQ_LOW, EOQ_HIGH)
         SS = binary_to_int(SS_binary, SS_LOW, SS_HIGH)
-        _, _, _, _, _, total_cost_value, _, _, _ = total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
-                          run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
+        _, _, _, _, _, total_cost_value, _, _, _, _ = total_cost_ga(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
+                          run_start_date, run_end_date, type, lead_time_mu, lead_time_std, maintenance_mu, maintenance_std,
                           order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param)
         return total_cost_value,
 
@@ -616,12 +623,12 @@ def run_genetic_algorithm(data_dict, meta_dict, target, initial_stock, start_dat
         results.add((EOQ, SS))
 
     results = list(results)
-    _, _, _, rop_list, _, _, minus_value, lead_time_list, expected_demand_list = total_cost_ga(
+    _, _, _, rop_list, _, _, minus_value, lead_time_list, expected_demand_list, main = total_cost_ga(
         EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
-        run_start_date, run_end_date, type, lead_time_mu, lead_time_std, 
+        run_start_date, run_end_date, type, lead_time_mu, lead_time_std, maintenance_mu, maintenance_std,
         order_dates, order_values, arrival_dates, pending_orders, alpha, beta, gamma, delta, lambda_param
     )
-    return results, minus_value, rop_list, lead_time_list, expected_demand_list
+    return results, minus_value, rop_list, lead_time_list, expected_demand_list, main
 
 def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, start_date, end_date, 
                run_start_date, run_end_date, order_dates, order_values, arrival_dates, pending_orders,
@@ -636,13 +643,7 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
 
     dates = pd.date_range(start=run_start_date, end=run_end_date, freq='D')
     arrival_date = pd.Timestamp(run_start_date)
-    # minus = new_order(lambda_value, order_mu, order_std, run_start_date, run_end_date)
-    # minus = minus.groupby(['날짜']).sum(numeric_only=True)
-    # main = generate_maintenance_schedule(data_dict[target], maintenance_mu, maintenance_std, simulation_start_date, simulation_start_date + pd.DateOffset(months=lookback_months))
-    # minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
-    # minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
-    # minus = minus[['날짜', '수량']].set_index('날짜')
-    # minus = minus.sort_index()
+
     time = 0
     for date in dates:
         minus_stock = 0
@@ -722,9 +723,11 @@ def total_cost_result(EOQ, SS, data_dict, meta_dict, target, initial_stock, star
     total_cost_value = total_cost_df[['backlog_cost', 'inventory_cost', 'order_cost']].abs().sum().sum()
     return stock_levels_df, pending_orders, orders_df, rop_list, dates, total_cost_value
 
-def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_levels_df_result, orders_df_result, target, initial_stock):
+def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_levels_df_result, orders_df_result, target, initial_stock, maintenance_date):
     arrival_dates = orders_df_result['Arrival_date']
     order_dates = orders_df_result['Order_Date']
+    order_values = orders_df_result['Order_Value']
+    max_y_value = max(safety_stock, max(rop_values_result), stock_levels_df_result['Stock'].max()) * 1.2
 
     fig = go.Figure()
     # Safety Stock 라인
@@ -757,38 +760,58 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
     for date in arrival_dates:
         fig.add_shape(
             type="line",
-            x0=date, y0=0, x1=date, y1=stock_levels_df_result['Stock'].max() * 1.3,
+            x0=date, y0=0, x1=date, y1=max_y_value,
             line=dict(color="orange", width=1, dash="dash"),
         )
 
-    for date in order_dates:
+    # Arrival Dates
+    for i, (date, value) in enumerate(zip(arrival_dates, order_values)):
         fig.add_shape(
             type="line",
-            x0=date, y0=-5, x1=date, y1=stock_levels_df_result['Stock'].max() * 1.3,
-            line=dict(color="grey", width=1, dash="dash"),
+            x0=date, y0=0, x1=date, y1=max_y_value,
+            line=dict(color="orange", width=1, dash="dash"),
         )
-
-    for i, date in enumerate(arrival_dates):
         fig.add_trace(go.Scatter(
             x=[date],
             y=[0],
             mode="lines+markers",
             marker=dict(size=7, color="orange"),
             name="Arrival Date",
-            hovertemplate="<span style='color:orange'>Arrival Date</span> (%{x|%Y-%m-%d})<extra></extra>",
+            hovertemplate=f"<span style='color:orange'>Arrival Date</span> (%{{x|%Y-%m-%d}}, {value})<extra></extra>",
             showlegend=(i == 0)
         ))
-
-    for i, date in enumerate(order_dates):
+    # Order Dates
+    for i, (date, value) in enumerate(zip(order_dates, order_values)):
+        fig.add_shape(
+            type="line",
+            x0=date, y0=-5, x1=date, y1=max_y_value,
+            line=dict(color="grey", width=1, dash="dash"),
+        )
         fig.add_trace(go.Scatter(
             x=[date],
             y=[-5],
             mode="lines+markers",
             marker=dict(size=7, color="grey"),
             name="Order Date",
-            hovertemplate="<span style='color:grey'>Order Date</span> (%{x|%Y-%m-%d})<extra></extra>",
+            hovertemplate=f"<span style='color:grey'>Order Date</span> (%{{x|%Y-%m-%d}}, {value})<extra></extra>",
             showlegend=(i == 0)
-        ))    
+        ))
+    # Maintenance Dates
+    for date, quantity in maintenance_date.iterrows():
+        fig.add_shape(
+            type="line",
+            x0=date, y0=-10, x1=date, y1=max_y_value,
+            line=dict(color="purple", width=2, dash="dot"),
+        )
+        # Maintenance Point Marker
+        fig.add_trace(go.Scatter(
+            x=[date],
+            y=[-10],
+            mode="markers+text",
+            marker=dict(size=12, color="purple", line=dict(width=2, color="purple")),
+            name="Maintenance Date",
+            hovertemplate=f"<span style='color:purple'>Maintenance Date</span> (%{{x|%Y-%m-%d}}, {quantity['수량']})<extra></extra>",
+        ))
 
     max_y_value = max(safety_stock, max(rop_values_result), stock_levels_df_result['Stock'].max()) * 1.2
     fig.update_layout(
@@ -819,3 +842,216 @@ def ordered_dump(data, stream=None, Dumper=yaml.SafeDumper, **kwds):
         pass
     OrderedDumper.add_representer(OrderedDict,lambda dumper, data: dumper.represent_mapping(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data.items()))
     return yaml.dump(data, stream, OrderedDumper, **kwds)
+
+def generate_maintenance_schedule(mu, std, start_date, end_date):
+    """
+    유지보수 스케줄을 생성하는 함수. 각 유지보수 날짜에 대해 수량을 생성하고, 
+    수량을 화요일에 할당합니다.
+
+    Parameters:
+    - data_dict: 데이터 사전 (사용하지 않음, 필요하면 추가 활용 가능)
+    - mu: 수량 생성 시 사용할 평균
+    - std: 수량 생성 시 사용할 표준편차
+    - start_date: 시작 날짜 (datetime 객체)
+    - end_date: 종료 날짜 (datetime 객체)
+
+    Returns:
+    - maintenance_dates: 유지보수 날짜와 수량이 포함된 데이터프레임, 유지보수 날짜가 인덱스로 설정됨
+    """
+    # 유지보수 날짜를 저장할 빈 데이터프레임 생성
+    maintenance_dates = pd.DataFrame(columns=['날짜', '수량'])
+
+    # 각 년도별 상반기와 하반기로 유지보수 날짜 및 수량 생성
+    for year in range(start_date.year, end_date.year + 1):
+        # 상반기: 1월 1일 ~ 6월 30일
+        first_day_of_h1 = pd.Timestamp(year, 1, 1)
+        last_day_of_h1 = pd.Timestamp(year, 6, 30)
+
+        # 하반기: 7월 1일 ~ 12월 31일
+        first_day_of_h2 = pd.Timestamp(year, 7, 1)
+        last_day_of_h2 = pd.Timestamp(year, 12, 31)
+
+        # 상반기의 첫 번째 화요일
+        if first_day_of_h1 <= end_date and last_day_of_h1 >= start_date:
+            first_tuesday_h1 = first_day_of_h1 + pd.offsets.Week(weekday=1)
+            if first_tuesday_h1 >= start_date and first_tuesday_h1 <= end_date:
+                maintenance_quantity_h1 = -int(np.random.normal(mu, std))
+                maintenance_dates = pd.concat([
+                    maintenance_dates,
+                    pd.DataFrame({'날짜': [first_tuesday_h1], '수량': [maintenance_quantity_h1]})
+                ], ignore_index=True)
+
+        # 하반기의 첫 번째 화요일
+        if first_day_of_h2 <= end_date and last_day_of_h2 >= start_date:
+            first_tuesday_h2 = first_day_of_h2 + pd.offsets.Week(weekday=1)
+            if first_tuesday_h2 >= start_date and first_tuesday_h2 <= end_date:
+                maintenance_quantity_h2 = -int(np.random.normal(mu, std))
+                maintenance_dates = pd.concat([
+                    maintenance_dates,
+                    pd.DataFrame({'날짜': [first_tuesday_h2], '수량': [maintenance_quantity_h2]})
+                ], ignore_index=True)
+
+    # '날짜' 열을 인덱스로 설정
+    maintenance_dates.set_index('날짜', inplace=True)
+    return maintenance_dates
+
+def plot_inventory_analysis(data_dict, start_date=None, end_date=None, selected_material=None):
+    df = data_dict[selected_material]
+
+    # 날짜로 그룹화하여 일별 합계 및 누적 재고 계산
+    df['날짜'] = pd.to_datetime(df['날짜'])
+    df = df.groupby('날짜')['입력단위수량'].sum().reset_index()
+    df['재고누적'] = df['입력단위수량'].cumsum()
+
+    # 선택한 기간 필터링
+    filtered_df = df[(df['날짜'] >= pd.to_datetime(start_date)) & 
+                     (df['날짜'] <= pd.to_datetime(end_date))]
+
+    # 기간 계산
+    period_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days + 1
+
+    # 0 이하인 누적합 값 카운트
+    below_zero_count = (filtered_df['재고누적'] <= 0).sum()
+
+    # 기초통계량 계산
+    incoming_counts = filtered_df['입력단위수량'][filtered_df['입력단위수량'] > 0].count()
+    outgoing_counts = filtered_df['입력단위수량'][filtered_df['입력단위수량'] < 0].count()
+
+    total_incoming = filtered_df['입력단위수량'][filtered_df['입력단위수량'] > 0].sum()
+    total_outgoing = filtered_df['입력단위수량'][filtered_df['입력단위수량'] < 0].sum() * -1  # 출고량의 절대값
+
+    average_incoming = total_incoming / period_days
+    average_outgoing = total_outgoing / period_days
+    average_inventory = filtered_df['재고누적'].mean()
+    
+    std_dev_incoming = filtered_df['입력단위수량'][filtered_df['입력단위수량'] > 0].std()
+    std_dev_outgoing = filtered_df['입력단위수량'][filtered_df['입력단위수량'] < 0].std()
+    std_dev_inventory = filtered_df['재고누적'].std()
+
+    # 글씨 크기 설정
+    title_font_size = 36
+    axis_title_font_size = 24
+    tick_font_size = 24
+    legend_font_size = 26
+    hoverlabel_font_size = 36
+
+    # 입고, 출고, 누적 재고 플롯 설정
+    if st.checkbox('입고 그래프 보기'):
+        incoming = filtered_df[filtered_df['입력단위수량'] > 0]
+        fig_incoming = go.Figure()
+        fig_incoming.add_trace(
+            go.Bar(x=incoming['날짜'], y=incoming['입력단위수량'], name="Incoming", marker=dict(color='blue'),
+                   hovertemplate='<b>날짜:</b> %{x}<br><b>수량:</b> <span style="color:blue;">%{y}</span><extra></extra>')
+        )
+        fig_incoming.update_layout(
+            title={
+                'text' : f"{selected_material} - 입고",
+                'x': 0.5, 'xanchor': 'center'
+            },
+            xaxis_title="날짜",
+            yaxis_title="입고수량",
+            title_font=dict(size=title_font_size),
+            xaxis=dict(title_font=dict(size=axis_title_font_size), tickfont=dict(size=tick_font_size)),
+            yaxis=dict(title_font=dict(size=axis_title_font_size), tickfont=dict(size=tick_font_size)),
+            legend=dict(font=dict(size=legend_font_size)),
+            hoverlabel=dict(font=dict(size=hoverlabel_font_size)),
+            barmode='group'
+        )
+        st.plotly_chart(fig_incoming)
+
+        # 입고 통계량 표시
+        st.markdown("### 입고 통계량", unsafe_allow_html=True)
+        incoming_stats = pd.DataFrame({
+            '기간': [f"{start_date} ~ {end_date}"],
+            '일 평균 입고량': [round(average_incoming, 2)],
+            '일 평균 입고 횟수': [round(incoming_counts / period_days, 2)],
+            '입고량 평균': [round(total_incoming / incoming_counts, 2) if incoming_counts else 0],
+            '입고량 표준편차': [round(std_dev_incoming, 2)]
+        })
+        
+        st.table(incoming_stats.style.set_properties(**{'font-size': '20px'}).set_table_attributes('style="font-size: 20px;"'))
+
+    if st.checkbox('출고 그래프 보기'):
+        outgoing = filtered_df[filtered_df['입력단위수량'] < 0]
+        fig_outgoing = go.Figure()
+        fig_outgoing.add_trace(
+            go.Bar(x=outgoing['날짜'], y=outgoing['입력단위수량'] * -1, name="Outgoing", marker=dict(color='red'),
+                   hovertemplate='<b>날짜:</b> %{x}<br><b>수량:</b> <span style="color:red;">%{y}</span><extra></extra>')
+        )
+        fig_outgoing.update_layout(
+            title={
+                'text' : f"{selected_material} - 출고",
+                'x': 0.5, 'xanchor': 'center'
+            },
+            xaxis_title="날짜",
+            yaxis_title="출고수량",
+            title_font=dict(size=title_font_size),
+            xaxis=dict(title_font=dict(size=axis_title_font_size), tickfont=dict(size=tick_font_size)),
+            yaxis=dict(title_font=dict(size=axis_title_font_size), tickfont=dict(size=tick_font_size)),
+            legend=dict(font=dict(size=legend_font_size)),
+            hoverlabel=dict(font=dict(size=hoverlabel_font_size)),
+            barmode='group'
+        )
+        st.plotly_chart(fig_outgoing)
+
+        # 출고 통계량 표시
+        st.markdown("### 출고 통계량", unsafe_allow_html=True)
+        outgoing_stats = pd.DataFrame({
+            '기간': [f"{start_date} ~ {end_date}"],
+            '일 평균 출고량': [round(average_outgoing, 2)],
+            '일 평균 출고 횟수': [round(outgoing_counts / period_days, 2)],
+            '출고량 평균': [round(total_outgoing / outgoing_counts, 2) if outgoing_counts else 0],
+            '출고량 표준편차': [round(std_dev_outgoing, 2)]
+        })
+        st.table(outgoing_stats.style.set_properties(**{'font-size': '20px'}).set_table_attributes('style="font-size: 20px;"'))
+
+    if st.checkbox('입고&출고 누적합 그래프 보기'):
+        fig_cumulative = go.Figure()
+
+        above_zero = filtered_df[filtered_df['재고누적'] > 0]
+        fig_cumulative.add_trace(
+            go.Scatter(
+                x=above_zero['날짜'],
+                y=above_zero['재고누적'],
+                mode='lines',  
+                name="Inventory plot",
+                line=dict(color='green')  
+            )
+        )
+
+        below_zero = filtered_df[filtered_df['재고누적'] <= 0]
+        if not below_zero.empty:
+            fig_cumulative.add_trace(
+                go.Scatter(
+                    x=below_zero['날짜'],
+                    y=below_zero['재고누적'],
+                    mode='markers',
+                    name="Below Zero",
+                    marker=dict(color='red', size=5)
+                )
+            )
+
+        fig_cumulative.update_layout(
+            title={
+                'text' : f"{selected_material} - 누적 재고 (0 이하 값: {below_zero_count})",
+                'x': 0.5, 'xanchor': 'center'
+            },
+            xaxis_title="날짜",
+            yaxis_title="재고 누적",
+            title_font=dict(size=title_font_size),
+            xaxis=dict(title_font=dict(size=axis_title_font_size), tickfont=dict(size=tick_font_size)),
+            yaxis=dict(title_font=dict(size=axis_title_font_size), tickfont=dict(size=tick_font_size)),
+            legend=dict(orientation="h", yanchor="bottom", y=1, xanchor="right", x=1, font=dict(size=legend_font_size)),
+            hoverlabel=dict(font=dict(size=hoverlabel_font_size))
+        )
+        st.plotly_chart(fig_cumulative)
+
+        # 누적 재고 통계량 표시
+        st.markdown("### 누적 재고 통계량", unsafe_allow_html=True)
+        inventory_stats = pd.DataFrame({
+            '기간': [f"{start_date} ~ {end_date}"],
+            '일 평균 재고 수준': [round(average_inventory, 2)],
+            '일 평균 변동 횟수': [round(len(filtered_df) / period_days, 2)],
+            '일 평균 재고 표준편차': [round(std_dev_inventory, 2)]
+        })
+        st.table(inventory_stats.style.set_properties(**{'font-size': '20px'}).set_table_attributes('style="font-size: 20px;"'))
