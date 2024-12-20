@@ -223,9 +223,10 @@ def warmup_simulator(EOQ, SS, data_dict, target, initial_stock, lead_time_mu, le
     minus = new_order(lambda_value, order_mu, order_std, warm_up_start_date, run_start_time)
     minus = minus.groupby(['날짜']).sum(numeric_only=True)
     main = generate_maintenance_schedule(maintenance_mu, maintenance_std, warm_up_start_date, run_start_time)
-    minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
-    minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
-    minus = minus[['날짜', '수량']].set_index('날짜')
+    if main is not None and not main.empty:
+        minus = pd.merge(main.reset_index(), minus.reset_index(), on='날짜', how='outer', suffixes=('_main', '_minus'))
+        minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
+        minus = minus[['날짜', '수량']].set_index('날짜')
     minus = minus.sort_index()
     if minus.empty:
         return stock_levels_df, pending_orders_df, order_dates, arrival_dates, rop_values, dates
@@ -800,20 +801,19 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
     for date, quantity in maintenance_date.iterrows():
         fig.add_shape(
             type="line",
-            x0=date, y0=-10, x1=date, y1=max_y_value,
+            x0=date, y0=-5, x1=date, y1=max_y_value,
             line=dict(color="purple", width=2, dash="dot"),
         )
         # Maintenance Point Marker
         fig.add_trace(go.Scatter(
             x=[date],
             y=[-10],
-            mode="markers+text",
-            marker=dict(size=12, color="purple", line=dict(width=2, color="purple")),
+            mode="lines+markers",
+            marker=dict(size=7, color="purple", line=dict(width=2, color="purple")),
             name="Maintenance Date",
             hovertemplate=f"<span style='color:purple'>Maintenance Date</span> (%{{x|%Y-%m-%d}}, {quantity['수량']})<extra></extra>",
         ))
 
-    max_y_value = max(safety_stock, max(rop_values_result), stock_levels_df_result['Stock'].max()) * 1.2
     fig.update_layout(
         autosize=True, 
         title={
@@ -825,7 +825,7 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
         xaxis=dict(titlefont=dict(size=24), tickformat='%Y-%m-%d', tickmode='linear',
             dtick=604800000.0, tickfont=dict(size=24), tickangle=90, range = [min(dates)-pd.Timedelta(days=0.5), max(dates)+pd.Timedelta(days=0.5)]
         ),
-        yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24), range=[-10, max_y_value]),
+        yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24)),
         legend=dict(orientation="h", yanchor="bottom", y=1, xanchor="right", x=1, font=dict(size=26)),
         width=2400, height=800, hoverlabel=dict(font_size=36)
     )

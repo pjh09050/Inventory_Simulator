@@ -124,7 +124,7 @@ else:
         if meta_path:
             st.session_state['meta_dict'] = load_meta_info(meta_path)
             meta_dict = st.session_state['meta_dict']
-            st.success("Meta dict loaded successfully!")
+            st.success("Meta Data(zws03s) 파일이 업로도되었어요!")
         else:
             st.error("Meta Data(zws03s) 파일을 업로드하세요")
             

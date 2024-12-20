@@ -122,7 +122,7 @@ if st.checkbox('Load parameters'):
                 with open(load_filename, 'r', encoding='utf-8') as file:
                     config = yaml.safe_load(file)
                 st.session_state['config'] = config
-                st.markdown(f'{load_filename} 파라미터 로드 완료')
+                st.success(f'{load_filename} 파라미터 로드 완료')
                 st.session_state['parameters_loaded'] = True
         else:
             st.write("No YAML files found.")
@@ -245,6 +245,8 @@ if st.session_state['parameters_loaded']:
                                 f"</div>", unsafe_allow_html=True
                             )
                     st.markdown(f"{st.session_state['simulation_info']}")
+                else:
+                    st.error(f"시뮬레이션을 실행시켜주세요")
 
             elif simulation_type == '분포 시뮬레이션':
                 status_text = st.empty()

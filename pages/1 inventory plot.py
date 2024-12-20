@@ -26,7 +26,7 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
-st.title("재고 데이터 plot 대시보드")
+st.subheader("Inventory Plot")
 data_path = st.file_uploader("Choose Data File", type=["pickle", "csv", "xlsx", "json"])
 data_dict = None  
 
@@ -46,4 +46,4 @@ if data_path is not None:
         # plot 그리기
         plot_inventory_analysis(st.session_state['data_dict'], st.session_state['start_date'], st.session_state['end_date'], st.session_state['selected_material'])
 else:
-    st.write("Data(mb51) 파일을 업로드하세요.")
+    st.write("Data(mb51) 파일을 업로드하세요")
