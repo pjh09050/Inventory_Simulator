@@ -1,6 +1,14 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import platform
+if platform.system() == 'Windows':
+    rc('font', family='Malgun Gothic')
+elif platform.system() == 'Darwin':
+    rc('font', family='AppleGothic')
+else: # linux
+    rc('font', family='Nanum Gothic')
 plt.rcParams['axes.unicode_minus'] = False
 import warnings
 warnings.filterwarnings('ignore')
@@ -51,15 +59,15 @@ with st.expander(rf'''###### :pencil: **재고 산정 방법**''', expanded=Fals
     st.markdown('- 재고 비용은 익일 재고 수준에 기반하여 계산됩니다.')
     st.markdown('- 재고량(CS)에 재고 보유 비율(α%)을 곱하여 계산됩니다.')
     st.markdown(r'''$$Inventory \, Cost_t = CS_t \times \alpha$$''')
-    st.markdown('-'*50)
+    st.markdown('')
 
     st.markdown('### 백로그 비용')
     st.markdown('- 백로그 비용은 주문을 제공하지 못하는 상황에서 발생합니다.')
     st.markdown('- 재고가 음수로 내려가는 상황이 지속되면, 지수적으로 비용이 증가합니다.')
     st.markdown(r'''$$Backlog \, Cost_t = max(0, D_t - (CS_t + S_t)) \times \beta \times exp(\lambda \times \tau_t)$$''')
-    st.markdown('-'*50)
+    st.markdown('')
 
-    st.markdown('### 주문비용')
+    st.markdown('### 주문 비용')
     st.markdown('- 주문 비용은 새로운 재고를 주문하거나 공급받는 데 발생하는 비용입니다.')
     st.markdown('- Economic Order Quantity(EOQ)를 기반으로 계산되며, 고정 및 가변 비용을 포함합니다.')
     st.markdown(r'''$$Ordering \, Cost_t = EOQ \times \gamma + \delta$$''')
@@ -99,10 +107,8 @@ with st.expander(rf'''###### :pencil: **재고 산정 방법**''', expanded=Fals
     st.write(f"- **재고 비용 계수 (α)**: {alpha}")
     st.write(f"- **백로그 비용 계수 (β)**: {beta}, **백로그 민감도 (λ)**: {lambda_param}")
     st.write(f"- **주문 비용 계수 (γ)**: {gamma}, **고정 주문 비용 (δ)**: {delta}")
-    st.write("---")
 
 with st.expander('###### :bookmark_tabs: **시뮬레이터 파라미터 설정 방법** '):
-    st.markdown('-'*50)
     st.markdown('### 시뮬레이터를 위한 분포 추론')
     st.markdown('- **정규분포**: 주문량 생성에 활용됩니다.')
     st.markdown(r'''$$D_t \sim N(\mu_D, \sigma_D)$$''')
@@ -110,7 +116,7 @@ with st.expander('###### :bookmark_tabs: **시뮬레이터 파라미터 설정 �
     st.markdown(r'''$$P_t \sim Poisson(\lambda)$$''')
     st.markdown('-'*50)
 
-    st.markdown("분포 모수 설정")
+    st.markdown("### 분포 모수 설정")
     mu_D = st.slider("정규분포 평균 (μ_D)", 50, 200, 100, 10)
     sigma_D = st.slider("정규분포 표준편차 (σ_D)", 5, 50, 10, 5)
     lambda_param = st.slider("포아송분포 평균 발생률 (λ)", 0.1, 2.0, 1.0, 0.1)
@@ -151,7 +157,7 @@ with st.expander('###### :bookmark_tabs: **시뮬레이터 파라미터 설정 �
     st.pyplot(fig)
 
 
-with st.expander(rf''' ###### :dart: **재고 최소화를 위한 목적함수**'''):    
+with st.expander(rf''' ###### :dart: **재고 비용 최소화를 위한 목적함수**'''):    
     st.markdown("### Objective Fuction :")
     st.latex(r"Q(SS, EOQ | T) = \sum_{t=0}^{T} (\text{Inventory cost}_t + \text{backlog cost}_t + \text{ordering cost}_t)")
 

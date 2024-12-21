@@ -5,7 +5,15 @@ from datetime import datetime
 from function import *
 import time
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import platform
 import os
+if platform.system() == 'Windows':
+    rc('font', family='Malgun Gothic')
+elif platform.system() == 'Darwin':
+    rc('font', family='AppleGothic')
+else: # linux
+    rc('font', family='Nanum Gothic')
 plt.rcParams['axes.unicode_minus'] = False
 import warnings
 warnings.filterwarnings('ignore')
@@ -108,11 +116,11 @@ if set_param:
                 save_config.update(st.session_state['meta_dict'][target])
                 with open(save_filename, 'w', encoding='utf-8') as file:
                     yaml.dump(save_config, file, default_flow_style=False, sort_keys=False, allow_unicode=True)
-                st.success(f"Configuration saved to '{save_filename}'")
+                st.success(f"'{save_filename}' 파일 저장 완료")
             except Exception as e:
                 st.error(f"Error saving configuration: {e}")
     else:
-        st.markdown('Data(mb51)와 Meta Data(zwms03s) 파일을 업로드하세요')
+        st.markdown('Data(mb51)와 Meta Data(zwms03s)의 pickle 파일을 업로드하세요')
 
 ################################################################################################
 st.subheader('Run simulation')

@@ -212,6 +212,8 @@ def warmup_simulator(EOQ, SS, data_dict, target, initial_stock, lead_time_mu, le
     arrival_dates = []
     lead_time_dates = []
     rop_values = []
+    stock_levels_df = pd.DataFrame(stock_levels)
+    pending_orders_df = pd.DataFrame(pending_orders)
 
     # # 시뮬레이션 세팅
     # np.random.seed(1)
@@ -228,9 +230,9 @@ def warmup_simulator(EOQ, SS, data_dict, target, initial_stock, lead_time_mu, le
         minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
         minus = minus[['날짜', '수량']].set_index('날짜')
     minus = minus.sort_index()
+    dates = pd.date_range(start=warm_up_start_date, end=run_start_time, freq='D')
     if minus.empty:
         return stock_levels_df, pending_orders_df, order_dates, arrival_dates, rop_values, dates
-    dates = pd.date_range(start=warm_up_start_date, end=run_start_time, freq='D')
     arrival_date = pd.Timestamp(warm_up_start_date)
     for date in dates:
         minus_stock = 0
@@ -729,7 +731,7 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
     order_dates = orders_df_result['Order_Date']
     order_values = orders_df_result['Order_Value']
     max_y_value = max(safety_stock, max(rop_values_result), stock_levels_df_result['Stock'].max()) * 1.2
-
+    min_y_value = min(safety_stock, min(rop_values_result), stock_levels_df_result['Stock'].min()) * 1.5
     fig = go.Figure()
     # Safety Stock 라인
     fig.add_trace(go.Scatter(
@@ -769,12 +771,12 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
     for i, (date, value) in enumerate(zip(arrival_dates, order_values)):
         fig.add_shape(
             type="line",
-            x0=date, y0=0, x1=date, y1=max_y_value,
+            x0=date, y0=min_y_value * 0.75, x1=date, y1=max_y_value,
             line=dict(color="orange", width=1, dash="dash"),
         )
         fig.add_trace(go.Scatter(
             x=[date],
-            y=[0],
+            y=[min_y_value * 0.75],
             mode="lines+markers",
             marker=dict(size=7, color="orange"),
             name="Arrival Date",
@@ -785,12 +787,12 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
     for i, (date, value) in enumerate(zip(order_dates, order_values)):
         fig.add_shape(
             type="line",
-            x0=date, y0=-5, x1=date, y1=max_y_value,
+            x0=date, y0=min_y_value * 0.85, x1=date, y1=max_y_value,
             line=dict(color="grey", width=1, dash="dash"),
         )
         fig.add_trace(go.Scatter(
             x=[date],
-            y=[-5],
+            y=[min_y_value * 0.85],
             mode="lines+markers",
             marker=dict(size=7, color="grey"),
             name="Order Date",
@@ -801,13 +803,13 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
     for date, quantity in maintenance_date.iterrows():
         fig.add_shape(
             type="line",
-            x0=date, y0=-5, x1=date, y1=max_y_value,
+            x0=date, y0=min_y_value * 0.95, x1=date, y1=max_y_value,
             line=dict(color="purple", width=2, dash="dot"),
         )
         # Maintenance Point Marker
         fig.add_trace(go.Scatter(
             x=[date],
-            y=[-10],
+            y=[min_y_value * 0.95],
             mode="lines+markers",
             marker=dict(size=7, color="purple", line=dict(width=2, color="purple")),
             name="Maintenance Date",
@@ -820,12 +822,11 @@ def plot_inventory_simulation(dates, safety_stock, rop_values_result, stock_leve
             'text': f'<span style="font-size:36px;">{target}</span><br>',
             'x': 0.5, 'xanchor': 'center'
         },
-        margin=dict(l=0, r=0, t=150, b=0),  # 여백 설정으로 제목이 짤리지 않도록
         xaxis_title='날짜', yaxis_title='재고량', font=dict(size=36),
-        xaxis=dict(titlefont=dict(size=24), tickformat='%Y-%m-%d', tickmode='linear',
-            dtick=604800000.0, tickfont=dict(size=24), tickangle=90, range = [min(dates)-pd.Timedelta(days=0.5), max(dates)+pd.Timedelta(days=0.5)]
+        xaxis=dict(titlefont=dict(size=24), tickformat='%Y-%m-%d', tickmode='linear', showline=True,
+            dtick=604800000.0, tickfont=dict(size=24), tickangle=45, range = [min(dates)-pd.Timedelta(days=0.5), max(dates)+pd.Timedelta(days=0.5)]
         ),
-        yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24)),
+        yaxis=dict(titlefont=dict(size=24), showgrid=True, tickfont=dict(size=24), range = [min(-30, min_y_value), max_y_value], showline=True),
         legend=dict(orientation="h", yanchor="bottom", y=1, xanchor="right", x=1, font=dict(size=26)),
         width=2400, height=800, hoverlabel=dict(font_size=36)
     )
@@ -901,7 +902,7 @@ def plot_inventory_analysis(data_dict, start_date=None, end_date=None, selected_
     # 날짜로 그룹화하여 일별 합계 및 누적 재고 계산
     df['날짜'] = pd.to_datetime(df['날짜'])
     df = df.groupby('날짜')['입력단위수량'].sum().reset_index()
-    df['재고누적'] = df['입력단위수량'].cumsum()
+    df['재고누적합'] = df['입력단위수량'].cumsum()
 
     # 선택한 기간 필터링
     filtered_df = df[(df['날짜'] >= pd.to_datetime(start_date)) & 
@@ -911,7 +912,7 @@ def plot_inventory_analysis(data_dict, start_date=None, end_date=None, selected_
     period_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days + 1
 
     # 0 이하인 누적합 값 카운트
-    below_zero_count = (filtered_df['재고누적'] <= 0).sum()
+    below_zero_count = (filtered_df['재고누적합'] <= 0).sum()
 
     # 기초통계량 계산
     incoming_counts = filtered_df['입력단위수량'][filtered_df['입력단위수량'] > 0].count()
@@ -922,11 +923,11 @@ def plot_inventory_analysis(data_dict, start_date=None, end_date=None, selected_
 
     average_incoming = total_incoming / period_days
     average_outgoing = total_outgoing / period_days
-    average_inventory = filtered_df['재고누적'].mean()
+    average_inventory = filtered_df['재고누적합'].mean()
     
     std_dev_incoming = filtered_df['입력단위수량'][filtered_df['입력단위수량'] > 0].std()
     std_dev_outgoing = filtered_df['입력단위수량'][filtered_df['입력단위수량'] < 0].std()
-    std_dev_inventory = filtered_df['재고누적'].std()
+    std_dev_inventory = filtered_df['재고누적합'].std()
 
     # 글씨 크기 설정
     title_font_size = 36
@@ -1008,25 +1009,25 @@ def plot_inventory_analysis(data_dict, start_date=None, end_date=None, selected_
     if st.checkbox('입고&출고 누적합 그래프 보기'):
         fig_cumulative = go.Figure()
 
-        above_zero = filtered_df[filtered_df['재고누적'] > 0]
+        above_zero = filtered_df[filtered_df['재고누적합'] > 0]
         fig_cumulative.add_trace(
             go.Scatter(
                 x=above_zero['날짜'],
-                y=above_zero['재고누적'],
+                y=above_zero['재고누적합'],
                 mode='lines',  
-                name="Inventory plot",
+                name="누적합",
                 line=dict(color='green')  
             )
         )
 
-        below_zero = filtered_df[filtered_df['재고누적'] <= 0]
+        below_zero = filtered_df[filtered_df['재고누적합'] <= 0]
         if not below_zero.empty:
             fig_cumulative.add_trace(
                 go.Scatter(
                     x=below_zero['날짜'],
-                    y=below_zero['재고누적'],
+                    y=below_zero['재고누적합'],
                     mode='markers',
-                    name="Below Zero",
+                    name="0 이하 시점",
                     marker=dict(color='red', size=5)
                 )
             )
@@ -1037,7 +1038,7 @@ def plot_inventory_analysis(data_dict, start_date=None, end_date=None, selected_
                 'x': 0.5, 'xanchor': 'center'
             },
             xaxis_title="날짜",
-            yaxis_title="재고 누적",
+            yaxis_title="재고누적합",
             title_font=dict(size=title_font_size),
             xaxis=dict(title_font=dict(size=axis_title_font_size), tickfont=dict(size=tick_font_size)),
             yaxis=dict(title_font=dict(size=axis_title_font_size), tickfont=dict(size=tick_font_size)),

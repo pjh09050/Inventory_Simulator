@@ -4,7 +4,15 @@ import pandas as pd
 from function import *
 import time
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import platform
 import os
+if platform.system() == 'Windows':
+    rc('font', family='Malgun Gothic')
+elif platform.system() == 'Darwin':
+    rc('font', family='AppleGothic')
+else: # linux
+    rc('font', family='Nanum Gothic')
 plt.rcParams['axes.unicode_minus'] = False
 import warnings
 warnings.filterwarnings('ignore')
@@ -124,12 +132,12 @@ else:
         if meta_path:
             st.session_state['meta_dict'] = load_meta_info(meta_path)
             meta_dict = st.session_state['meta_dict']
-            st.success("Meta Data(zws03s) 파일이 업로도되었어요!")
+            st.success("Meta Data(zws03s)의 pickle 파일이 업로도되었어요!")
         else:
-            st.error("Meta Data(zws03s) 파일을 업로드하세요")
+            st.error("Meta Data(zws03s)의 pickle 파일을 업로드하세요")
             
 #############################################################################################################
-    if st.checkbox('GA 파라미터 세팅'):
+    if st.checkbox('비용 최적화 세팅'):
         st.markdown("##### EOQ와 SS 범위 설정")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -148,18 +156,18 @@ else:
         with col6:
             st.session_state["beta"] = st.number_input("beta", min_value=0.0, value=30.0, step=0.1, format="%.1f")
         with col7:
-            st.session_state["gamma"] = st.number_input("gamma", min_value=0.0, value=0.55, step=0.01)
-        with col8:
-            st.session_state["delta"] = st.number_input("delta", min_value=0, value=100000, step=1000)
-        with col9:
             st.session_state["lambda_param"] = st.number_input("lambda", min_value=0.0, value=2.0, step=0.1, format="%.1f")
+        with col8:
+            st.session_state["gamma"] = st.number_input("gamma", min_value=0.0, value=0.55, step=0.01)
+        with col9:
+            st.session_state["delta"] = st.number_input("delta", min_value=0, value=100000, step=1000)
 
         st.markdown("##### Genetic Algorithm 파라미터 설정")
         col10, col11, col12, col13 = st.columns(4)
         with col10:
-            st.session_state["population_size"] = st.number_input("초기 개체 수 (population size)", min_value=1, max_value=100, value=10, step=1)
+            st.session_state["population_size"] = st.number_input("초기 개체 수 (population size)", min_value=1, max_value=100, value=20, step=1)
         with col11:
-            st.session_state["NGEN"] = st.number_input("세대 수 (NGEN)", min_value=1, max_value=1000, value=50, step=1)
+            st.session_state["NGEN"] = st.number_input("세대 수 (NGEN)", min_value=1, max_value=1000, value=100, step=1)
         with col12:
             st.session_state["CXPB"] = st.slider("교차 확률 (CXPB)", min_value=0.0, max_value=1.0, value=0.8, step=0.1)
         with col13:
@@ -284,7 +292,6 @@ else:
             st.markdown(
                 f"""
                 <div style="display: flex; justify-content: flex-start; align-items: center;">
-                    <h4 style="color: black; margin-right: 15px;">Initial Stock: {st.session_state["initial_stock"]}</h4>
                     <h4 style="color: black; margin-right: 15px;">EOQ: {st.session_state['selected_eoq']}</h4>
                     <h4 style="color: black; margin-right: 15px;">Safety Stock: {st.session_state['selected_ss']}</h4>
                     <h4 style="color: red; margin-right: 15px;">총 비용: {int(st.session_state['total_cost_value']):,}</h4>

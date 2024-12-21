@@ -1,6 +1,15 @@
 import streamlit as st
 from function import *
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import platform
+import os
+if platform.system() == 'Windows':
+    rc('font', family='Malgun Gothic')
+elif platform.system() == 'Darwin':
+    rc('font', family='AppleGothic')
+else: # linux
+    rc('font', family='Nanum Gothic')
 plt.rcParams['axes.unicode_minus'] = False
 import warnings
 warnings.filterwarnings('ignore')
@@ -46,4 +55,4 @@ if data_path is not None:
         # plot 그리기
         plot_inventory_analysis(st.session_state['data_dict'], st.session_state['start_date'], st.session_state['end_date'], st.session_state['selected_material'])
 else:
-    st.write("Data(mb51) 파일을 업로드하세요")
+    st.write("Data(mb51)의 pickle 파일을 업로드하세요")
