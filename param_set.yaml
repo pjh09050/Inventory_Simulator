@@ -7,8 +7,8 @@ run_start_date: '2024-01-01'
 run_end_date: '2024-01-30'
 safety_stock: 17.096
 initial_stock: 34.0
-maintenance_mu: 10.0
-maintenance_std: 1.0
+maintenance_mu: 70.0
+maintenance_std: 13.0
 품명: 수소(고순도), H2 HI-PURE 99.999%
 이동평균가: 38500
 납기(일)-Average Lead Time (Days) /Max/Min.1: 2

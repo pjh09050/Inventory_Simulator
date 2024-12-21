@@ -39,8 +39,20 @@ st.subheader('Parameter settings')
 set_param = st.checkbox('Set & Save parameters')
 
 if set_param:
-    data_path = st.file_uploader("Choose Data File", type=["pickle", "csv", "xlsx", "json"])
-    meta_path = st.file_uploader("Choose Meta_Data File", type=["pickle", "csv", "xlsx", "json"])
+    base_dir = "./data"
+    data_file = st.file_uploader("Choose Data File", type=["pickle", "csv", "xlsx", "json"])
+    meta_file = st.file_uploader("Choose Meta_Data File", type=["pickle", "csv", "xlsx", "json"])
+
+    # 경로 저장 변수
+    data_path = None
+    meta_path = None
+    # 업로드된 파일 이름으로 data 폴더 내 경로 생성
+    if data_file is not None:
+        data_path = os.path.join(base_dir, data_file.name).replace("\\", "/")
+
+    if meta_file is not None:
+        meta_path = os.path.join(base_dir, meta_file.name).replace("\\", "/")
+
     if data_path is not None and meta_path is not None:
         st.session_state['data_dict'] = eda(data_path)
         st.session_state['material_numbers'] = list(st.session_state['data_dict'].keys())
