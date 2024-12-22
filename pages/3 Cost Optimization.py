@@ -28,20 +28,21 @@ st.markdown("""
         font-size: 1.5rem; /* Global font size adjustment */
     }
     h1 {
-        font-size: 2rem; /* Increase title size */
+        font-size: 1.5rem; /* Increase title size */
     }
     h2, h3 {
         font-size: 1.5rem; /* Increase subheader size */
     }
-    h4 {
-        font-size: 1.3rem; /* Increase subheader size */
-    }
     .stButton button {
         font-size: 1.2rem; /* Button font size */
     }
+    /* data-testid="stMarkdownContainer" 안의 텍스트 크기 변경 */
+    [data-testid="stMarkdownContainer"] p {
+        font-size: 1.2rem !important; /* 텍스트 크기 조정 */
+        color: #31335F; /* 필요 시 색상 변경 */
+    }
     </style>
     """, unsafe_allow_html=True)
-
 # Title and header
 st.subheader('Parameter Load')
 
@@ -54,7 +55,7 @@ if st.checkbox('Load parameters'):
     try:
         yaml_files = [f for f in os.listdir() if f.endswith('.yaml') and f != 'meta_info.yaml']
         if yaml_files:
-            st.session_state['load_filename'] = st.selectbox('Select a YAML file to load', yaml_files)
+            st.session_state['load_filename'] = st.selectbox('Select a parameters file to load', yaml_files)
             if st.button('Load parameters(yaml 파일)'):
                 with open(st.session_state['load_filename'], 'r', encoding='utf-8') as file:
                     config = yaml.safe_load(file)
@@ -128,7 +129,7 @@ else:
     if 'meta_dict' in st.session_state:
         meta_dict = st.session_state['meta_dict']
     else:
-        meta_path = st.file_uploader("Choose Meta_Data File", type=["pickle", "csv", "xlsx", "json"])
+        meta_path = st.file_uploader("Choose Meta Data File (zwms03s)", type=["pickle", "csv", "xlsx", "json"])
         if meta_path:
             st.session_state['meta_dict'] = load_meta_info(meta_path)
             meta_dict = st.session_state['meta_dict']
@@ -141,37 +142,37 @@ else:
         st.markdown("##### EOQ와 SS 범위 설정")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.session_state["EOQ_LOW"] = st.number_input("EOQ_LOW", min_value=0, value=10, step=1)
+            st.session_state["EOQ_LOW"] = st.number_input("EOQ - Lower Bound", min_value=0, value=10, step=1)
         with col2:
-            st.session_state["EOQ_HIGH"] = st.number_input("EOQ_HIGH", min_value=0, value=100, step=1)
+            st.session_state["EOQ_HIGH"] = st.number_input("EOQ - Upper bound", min_value=0, value=100, step=1)
         with col3:
-            st.session_state["SS_LOW"] = st.number_input("Safety Stock_LOW", min_value=0, value=10, step=1)
+            st.session_state["SS_LOW"] = st.number_input("Safety Stock - Lower Bound", min_value=0, value=10, step=1)
         with col4:
-            st.session_state["SS_HIGH"] = st.number_input("Safety Stock_HIGH", min_value=0, value=50, step=1)
+            st.session_state["SS_HIGH"] = st.number_input("Safety Stock - Upper Bound", min_value=0, value=50, step=1)
 
         st.markdown("##### 비용 파라미터 설정")
         col5, col6, col7, col8, col9 = st.columns(5)
         with col5:
-            st.session_state["alpha"] = st.number_input("alpha", min_value=0.0, value=0.06, step=0.01)
+            st.session_state["alpha"] = st.number_input("alpha (α)", min_value=0.0, value=0.06, step=0.01)
         with col6:
-            st.session_state["beta"] = st.number_input("beta", min_value=0.0, value=30.0, step=0.1, format="%.1f")
+            st.session_state["beta"] = st.number_input("beta (β)", min_value=0.0, value=30.0, step=0.1, format="%.1f")
         with col7:
-            st.session_state["lambda_param"] = st.number_input("lambda", min_value=0.0, value=2.0, step=0.1, format="%.1f")
+            st.session_state["lambda_param"] = st.number_input("lambda (λ)", min_value=0.0, value=2.0, step=0.1, format="%.1f")
         with col8:
-            st.session_state["gamma"] = st.number_input("gamma", min_value=0.0, value=0.55, step=0.01)
+            st.session_state["gamma"] = st.number_input("gamma (γ)", min_value=0.0, value=0.55, step=0.01)
         with col9:
-            st.session_state["delta"] = st.number_input("delta", min_value=0, value=100000, step=1000)
+            st.session_state["delta"] = st.number_input("delta (δ)", min_value=0, value=100000, step=1000)
 
         st.markdown("##### Genetic Algorithm 파라미터 설정")
         col10, col11, col12, col13 = st.columns(4)
         with col10:
-            st.session_state["population_size"] = st.number_input("초기 개체 수 (population size)", min_value=1, max_value=100, value=20, step=1)
+            st.session_state["population_size"] = st.number_input("초기 개체 수", min_value=1, max_value=100, value=20, step=1)
         with col11:
-            st.session_state["NGEN"] = st.number_input("세대 수 (NGEN)", min_value=1, max_value=1000, value=100, step=1)
+            st.session_state["NGEN"] = st.number_input("세대 수", min_value=1, max_value=1000, value=100, step=1)
         with col12:
-            st.session_state["CXPB"] = st.slider("교차 확률 (CXPB)", min_value=0.0, max_value=1.0, value=0.8, step=0.1)
+            st.session_state["CXPB"] = st.slider("교차 확률", min_value=0.0, max_value=1.0, value=0.8, step=0.1)
         with col13:
-            st.session_state["MUTPB"] = st.slider("변이 확률 (MUTPB)", min_value=0.0, max_value=1.0, value=0.2, step=0.1)
+            st.session_state["MUTPB"] = st.slider("변이 확률", min_value=0.0, max_value=1.0, value=0.2, step=0.1)
 
 #############################################################################################################
     if 'optimize_checkbox' not in st.session_state:
@@ -241,9 +242,9 @@ else:
 
     if st.session_state.get('optimization_complete', False) and optimize_checkbox:
         if 'ga_result' in st.session_state:
-            st.write("다음은 EOQ와 Safety Stock 조합입니다:")
+            st.write("다음은 EOQ와 Safety Stock 조합입니다")
             options = [f"EOQ = {eoq}, Safety Stock = {ss}" for eoq, ss in st.session_state['ga_result']]
-            selected_option = st.selectbox("최적의 조합을 선택하세요:", options)
+            selected_option = st.selectbox("최적의 조합을 선택하세요", options)
 
             selected_index = options.index(selected_option)
             st.session_state["selected_eoq"], st.session_state["selected_ss"] = st.session_state['ga_result'][selected_index]
@@ -338,19 +339,26 @@ else:
                         f"</div>", unsafe_allow_html=True
                     )
             if 'load_filename' in st.session_state:
-                new_filename = st.text_input("결과를 저장할 파일 이름:", f"{st.session_state['load_filename'].split('.')[0]}_{st.session_state['selected_eoq']}_{st.session_state['selected_ss']}.yaml")
+                new_filename = st.text_input("결과를 저장할 파일 이름", f"{st.session_state['load_filename'].split('.')[0]}_{st.session_state['selected_eoq']}_{st.session_state['selected_ss']}.yaml")
                 if st.button("결과 저장"):
+                    result_folder = "result"
+                    if not os.path.exists(result_folder):
+                        os.makedirs(result_folder)
+                    # 파일 경로 설정
+                    file_path = os.path.join(result_folder, f"{new_filename}.yaml")
+
                     with open(st.session_state['load_filename'], 'r', encoding='utf-8') as file:
                         original_data = ordered_load(file)
+
                     new_results = OrderedDict({
                         "EOQ": int(st.session_state.get("selected_eoq")),
                         "Optimal_Safety_Stock": int(st.session_state.get("selected_ss")),
                         "Cost": float(st.session_state.get("total_cost_value"))
                     })
                     combined_data = OrderedDict(list(original_data.items()) + list(new_results.items()))
-                    with open(new_filename, "w", encoding="utf-8") as file:
+                    with open(file_path, "w", encoding="utf-8") as file:
                         ordered_dump(combined_data, file, allow_unicode=True, default_flow_style=False)
-                    st.success(f"Results saved to {new_filename}")
+                    st.success(f"{new_filename} 결과 파일이 result 폴더에 저장되었습니다.")
             else:
                 st.error(f"결과를 저장할 파라미터를 먼저 load 해주세요")
 

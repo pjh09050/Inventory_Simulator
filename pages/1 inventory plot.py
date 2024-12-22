@@ -25,7 +25,7 @@ st.markdown("""
         font-size: 1.5rem; /* Global font size adjustment */
     }
     h1 {
-        font-size: 2rem; /* Increase title size */
+        font-size: 1.5rem; /* Increase title size */
     }
     h2, h3 {
         font-size: 1.5rem; /* Increase subheader size */
@@ -33,10 +33,16 @@ st.markdown("""
     .stButton button {
         font-size: 1.2rem; /* Button font size */
     }
+    /* data-testid="stMarkdownContainer" 안의 텍스트 크기 변경 */
+    [data-testid="stMarkdownContainer"] p {
+        font-size: 1.2rem !important; /* 텍스트 크기 조정 */
+        color: #31335F; /* 필요 시 색상 변경 */
+    }
     </style>
     """, unsafe_allow_html=True)
+
 st.subheader("Inventory Plot")
-data_path = st.file_uploader("Choose Data File", type=["pickle", "csv", "xlsx", "json"])
+data_path = st.file_uploader("Choose Data File (mb51)", type=["pickle", "csv", "xlsx", "json"])
 data_dict = None  
 
 if data_path is not None:
@@ -55,4 +61,4 @@ if data_path is not None:
         # plot 그리기
         plot_inventory_analysis(st.session_state['data_dict'], st.session_state['start_date'], st.session_state['end_date'], st.session_state['selected_material'])
 else:
-    st.write("Data(mb51)의 pickle 파일을 업로드하세요")
+    st.write("Data(mb51)의 pickle 파일을 업로드하세요 (파일은 data 폴더안에 존재해야 합니다)")

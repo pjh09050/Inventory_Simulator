@@ -24,7 +24,7 @@ st.markdown("""
         font-size: 1.5rem; /* Global font size adjustment */
     }
     h1 {
-        font-size: 2rem; /* Increase title size */
+        font-size: 1.5rem; /* Increase title size */
     }
     h2, h3 {
         font-size: 1.5rem; /* Increase subheader size */
@@ -32,13 +32,15 @@ st.markdown("""
     .stButton button {
         font-size: 1.2rem; /* Button font size */
     }
+    /* data-testid="stMarkdownContainer" 안의 텍스트 크기 변경 */
+    [data-testid="stMarkdownContainer"] p {
+        font-size: 1.2rem !important; /* 텍스트 크기 조정 */
+        color: #31335F; /* 필요 시 색상 변경 */
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# Title and header
-
 st.markdown(' ')
-
 col0, col1 = st.columns([8,2])
 with col0:
     st.markdown('# Inventory Simulator')

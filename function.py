@@ -323,14 +323,14 @@ def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_da
         minus['수량'] = minus['수량_main'].combine_first(minus['수량_minus'])
         minus = minus[['날짜', '수량']].set_index('날짜')
     minus = minus.sort_index()
-    if type == "distribution":
+    if type == "분포":
         simulation_info = f"""
         **Simulation type**: {type}   
 
         **분포참조기간**: {start_date.date()} ~ {end_date.date()}  
-        **하루에 출고가 발생한 횟수**: {lambda_value}   
-        **분포참조기간에서 도출된 출고량 평균, 표준편차**: {order_mu}, {order_std}   
-        **분포참조기간에서 도출된 입고량 평균, 표준편차**: {store_mu}, {store_std}  
+        **하루에 출고가 발생한 횟수**: {round(lambda_value, 3)}   
+        **분포참조기간에서 도출된 출고량 평균, 표준편차**: {round(order_mu, 3)}, {round(order_std, 3)}   
+        **분포참조기간에서 도출된 입고량 평균, 표준편차**: {round(store_mu, 3)}, {round(store_std, 3)}    
 
         **Warm-up 시뮬레이션 기간**: {warm_up_start_date.date()} ~ {run_start_date.date()}  
         **시뮬레이션 기간**: {run_start_date.date()} ~ {run_end_date.date()}
@@ -340,8 +340,8 @@ def run_simulation(EOQ, SS, data_dict, target, initial_stock, start_date, end_da
         **Simulation type**: {type}   
 
         **분포참조기간**: {start_date.date()} ~ {end_date.date()}  
-        **하루에 출고가 발생한 횟수**: {lambda_value}   
-        **분포참조기간에서 도출된 출고량 평균, 표준편차**: {order_mu}, {order_std}   
+        **하루에 출고가 발생한 횟수**: {round(lambda_value, 3)}    
+        **분포참조기간에서 도출된 출고량 평균, 표준편차**: {round(order_mu, 3)}, {round(order_std, 3)}   
         **EOQ**: {EOQ}  
 
         **Warm-up 시뮬레이션 기간**: {warm_up_start_date.date()} ~ {run_start_date.date()}  

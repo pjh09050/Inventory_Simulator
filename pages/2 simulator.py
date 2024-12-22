@@ -29,13 +29,18 @@ st.markdown("""
         font-size: 1.5rem; /* Global font size adjustment */
     }
     h1 {
-        font-size: 2rem; /* Increase title size */
+        font-size: 1.5rem; /* Increase title size */
     }
     h2, h3 {
         font-size: 1.5rem; /* Increase subheader size */
     }
     .stButton button {
         font-size: 1.2rem; /* Button font size */
+    }
+    /* data-testid="stMarkdownContainer" 안의 텍스트 크기 변경 */
+    [data-testid="stMarkdownContainer"] p {
+        font-size: 1.2rem !important; /* 텍스트 크기 조정 */
+        color: #31335F; /* 필요 시 색상 변경 */
     }
     </style>
     """, unsafe_allow_html=True)
@@ -48,8 +53,8 @@ set_param = st.checkbox('Set & Save parameters')
 
 if set_param:
     base_dir = "./data"
-    data_file = st.file_uploader("Choose Data File", type=["pickle", "csv", "xlsx", "json"])
-    meta_file = st.file_uploader("Choose Meta_Data File", type=["pickle", "csv", "xlsx", "json"])
+    data_file = st.file_uploader("Choose Data File (mb51)", type=["pickle", "csv", "xlsx", "json"])
+    meta_file = st.file_uploader("Choose Meta Data File (zwms03s)", type=["pickle", "csv", "xlsx", "json"])
 
     # 경로 저장 변수
     data_path = None
@@ -120,7 +125,7 @@ if set_param:
             except Exception as e:
                 st.error(f"Error saving configuration: {e}")
     else:
-        st.markdown('Data(mb51)와 Meta Data(zwms03s)의 pickle 파일을 업로드하세요')
+        st.markdown('Data와 Meta Data의 pickle 파일을 업로드하세요 (파일은 data 폴더안에 존재해야 합니다)')
 
 ################################################################################################
 st.subheader('Run simulation')
@@ -137,7 +142,7 @@ if st.checkbox('Load parameters'):
     try:
         yaml_files = [f for f in os.listdir() if f.endswith('.yaml') and f != 'meta_info.yaml']
         if yaml_files:
-            load_filename = st.selectbox('Select a YAML file to load', yaml_files)
+            load_filename = st.selectbox('Select a parameters file to load', yaml_files)
             if st.button('Load parameters(yaml 파일)'):
                 with open(load_filename, 'r', encoding='utf-8') as file:
                     config = yaml.safe_load(file)
@@ -181,7 +186,7 @@ if st.session_state['parameters_loaded']:
                 simulation_type = st.radio("Choose Simulation Type", ('EOQ 시뮬레이션', '분포 시뮬레이션'))
 
             if simulation_type == 'EOQ 시뮬레이션':
-                simulation_type = 'optimal'
+                simulation_type = 'EOQ'
                 with col11:
                     EOQ = st.number_input("EOQ", value=0, step=1, format="%d")
                 with col12:
@@ -270,7 +275,7 @@ if st.session_state['parameters_loaded']:
 
             elif simulation_type == '분포 시뮬레이션':
                 status_text = st.empty()
-                simulation_type = 'distribution'
+                simulation_type = '분포'
 
                 warmup_stock_levels_df, warmup_pending_orders_df, warmup_order_dates, warmup_arrival_dates, warmup_rop_values, warmup_dates = warmup_simulator(
                     None, st.session_state['safety_stock'], st.session_state['data_dict'], st.session_state['target'], st.session_state['initial_stock'],
