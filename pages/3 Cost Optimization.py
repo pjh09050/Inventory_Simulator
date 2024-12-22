@@ -5,15 +5,7 @@ from function import *
 import time
 import matplotlib.pyplot as plt
 from matplotlib import rc
-import platform
 import os
-if platform.system() == 'Windows':
-    rc('font', family='Malgun Gothic')
-elif platform.system() == 'Darwin':
-    rc('font', family='AppleGothic')
-else: # linux
-    rc('font', family='Nanum Gothic')
-plt.rcParams['axes.unicode_minus'] = False
 import warnings
 warnings.filterwarnings('ignore')
 
