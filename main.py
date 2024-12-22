@@ -2,14 +2,6 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rc
-import platform
-if platform.system() == 'Windows':
-    rc('font', family='Malgun Gothic')
-elif platform.system() == 'Darwin':
-    rc('font', family='AppleGothic')
-else: # linux
-    rc('font', family='Nanum Gothic')
-plt.rcParams['axes.unicode_minus'] = False
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -140,18 +132,18 @@ with st.expander('###### :bookmark_tabs: **시뮬레이터 파라미터 설정 �
     fig, ax = plt.subplots(2, 1, figsize=(20, 12))
 
     # 주문량 시뮬레이션 결과
-    ax[0].plot(range(num_samples), demand, marker='o', label="주문량 (정규분포 기반)")
-    ax[0].set_title("주문량 시뮬레이션 결과", fontsize=14)
-    ax[0].set_xlabel("일", fontsize=12)
-    ax[0].set_ylabel("일(Day)", fontsize=12)
+    ax[0].plot(range(num_samples), demand, marker='o', label="Order Values (Normal Distribution)", color='blue')
+    ax[0].set_title("Simulation Results for Order Values", fontsize=14)
+    ax[0].set_xlabel("Day", fontsize=12)
+    ax[0].set_ylabel("Values", fontsize=12)
     ax[0].legend()
     ax[0].grid()
 
     # 주문 간격 시뮬레이션 결과
-    ax[1].bar(range(100), order_occurrence, label="주문 발생 여부 (0: 없음, 1: 발생)", color="orange")
-    ax[1].set_title("주문 발생 여부 (100일)", fontsize=14)
-    ax[1].set_xlabel("날짜", fontsize=12)
-    ax[1].set_ylabel("발생 여부", fontsize=12)
+    ax[1].bar(range(100), order_occurrence, label="Order Occurrence (0: None, 1: Occurred)", color="orange")
+    ax[1].set_title("Order Occurrence (100 Days)", fontsize=14)
+    ax[1].set_xlabel("Date", fontsize=12)
+    ax[1].set_ylabel("Order Occurrence", fontsize=12)
     ax[1].legend()
     ax[1].grid()
 
